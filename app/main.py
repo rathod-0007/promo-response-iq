@@ -125,7 +125,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     end: str | None = None):
         return _export("pptx", region, specialty, tier, start, end, budget_change_pct)
 
-    app.mount("/static", StaticFiles(directory=STATIC), name="static")
+    class NoCacheStatic(StaticFiles):
+        async def get_response(self, path, scope):
+            resp = await super().get_response(path, scope)
+            resp.headers["Cache-Control"] = "no-cache"
+            return resp
+
+    app.mount("/static", NoCacheStatic(directory=STATIC), name="static")
 
     @app.get("/")
     def index():

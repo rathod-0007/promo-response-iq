@@ -41,6 +41,48 @@ function fillSelect(id, options, allLabel, selected = "") {
   el.value = selected;
 }
 
+/* Searchable dropdown layered over a native <select> (which stays the source of truth). */
+const combos = [];
+function enhanceSelect(sel) {
+  if (sel._combo) { sel._combo.rebuild(); return; }
+  const wrap = document.createElement("div"); wrap.className = "combo";
+  sel.parentNode.insertBefore(wrap, sel); wrap.appendChild(sel); sel.classList.add("native");
+  const btn = document.createElement("button"); btn.type = "button"; btn.className = "combo-btn";
+  btn.setAttribute("aria-haspopup", "listbox"); btn.setAttribute("aria-expanded", "false");
+  const label = document.createElement("span"); const caret = document.createElement("i"); caret.className = "caret";
+  btn.append(label, caret);
+  const pop = document.createElement("div"); pop.className = "combo-pop"; pop.hidden = true;
+  const search = document.createElement("input"); search.type = "search"; search.placeholder = "Search..."; search.setAttribute("aria-label", "Search options");
+  const list = document.createElement("ul"); list.setAttribute("role", "listbox");
+  const empty = document.createElement("div"); empty.className = "combo-empty"; empty.textContent = "No matches"; empty.hidden = true;
+  pop.append(search, list, empty); wrap.append(btn, pop);
+  let active = -1;
+
+  const items = () => [...list.children];
+  const sync = () => { label.textContent = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : ""; items().forEach((li) => li.classList.toggle("sel", li.dataset.value === sel.value)); };
+  const setActive = (i) => { const it = items().filter((li) => !li.hidden); active = Math.max(0, Math.min(i, it.length - 1)); items().forEach((li) => li.classList.remove("act")); if (it[active]) { it[active].classList.add("act"); it[active].scrollIntoView({ block: "nearest" }); } };
+  const filter = () => { const q = search.value.trim().toLowerCase(); let n = 0; items().forEach((li) => { const show = li.textContent.toLowerCase().includes(q); li.hidden = !show; if (show) n++; }); empty.hidden = n > 0; setActive(0); };
+  const close = () => { pop.hidden = true; btn.setAttribute("aria-expanded", "false"); };
+  const open = () => { combos.forEach((c) => c.close()); pop.hidden = false; btn.setAttribute("aria-expanded", "true"); search.value = ""; filter(); search.focus(); };
+  const choose = (v) => { sel.value = v; sync(); close(); sel.dispatchEvent(new Event("change")); btn.focus(); };
+  const rebuild = () => {
+    list.innerHTML = "";
+    [...sel.options].forEach((o) => { const li = document.createElement("li"); li.setAttribute("role", "option"); li.dataset.value = o.value; li.textContent = o.text; li.addEventListener("click", () => choose(o.value)); list.appendChild(li); });
+    sync();
+  };
+  btn.addEventListener("click", () => (pop.hidden ? open() : close()));
+  search.addEventListener("input", filter);
+  search.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive(active + 1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive(active - 1); }
+    else if (e.key === "Enter") { e.preventDefault(); const a = items().filter((li) => !li.hidden)[active]; if (a) choose(a.dataset.value); }
+    else if (e.key === "Escape") { close(); btn.focus(); }
+  });
+  document.addEventListener("click", (e) => { if (!wrap.contains(e.target)) close(); });
+  sel._combo = { rebuild, sync, close }; combos.push(sel._combo); rebuild();
+}
+const syncSelects = () => combos.forEach((c) => c.sync());
+
 function table(id, cols, rows) {
   const t = $(id); t.innerHTML = "";
   const head = t.createTHead().insertRow();
@@ -69,7 +111,14 @@ function draw(id, config) {
   Chart.defaults.color = cssVar("--muted");
   Chart.defaults.borderColor = cssVar("--border");
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  Chart.defaults.font.size = 11;
+  Chart.defaults.borderColor = cssVar("--rule");
   charts[id] = new Chart($(id), { ...config, options: { responsive: true, maintainAspectRatio: false, ...config.options } });
+}
+
+function clearModelPanels() {
+  ["c-elast", "c-roi"].forEach((id) => { if (charts[id]) { charts[id].destroy(); delete charts[id]; } });
+  ["t-model", "t-roi", "t-tier", "t-moves", "opt-kpis", "insights"].forEach((id) => { $(id).innerHTML = ""; });
 }
 
 function showNotice(msg) { const n = $("notice"); n.hidden = !msg; n.textContent = msg || ""; }
@@ -84,17 +133,17 @@ async function loadOverview() {
     { label: "Active HCPs", value: fmt(kpis.active_hcps) },
     { label: "Samples / e-mails", value: `${fmt(kpis.total_samples)} / ${fmt(kpis.total_emails)}` },
   ]);
-  const accent = cssVar("--accent"), accent2 = cssVar("--accent-2");
+  const accent = cssVar("--accent"), amber = cssVar("--amber");
   draw("c-trend", {
     type: "bar",
     data: { labels: trend.map((r) => r.month), datasets: [
-      { type: "line", label: "Calls", data: trend.map((r) => r.calls), borderColor: accent2, backgroundColor: accent2, yAxisID: "y2", tension: .3, pointRadius: 0, borderWidth: 2 },
-      { label: "Rx", data: trend.map((r) => r.trx), backgroundColor: accent, borderRadius: 6, yAxisID: "y" } ] },
+      { type: "line", label: "Calls", data: trend.map((r) => r.calls), borderColor: amber, backgroundColor: amber, yAxisID: "y2", tension: .3, pointRadius: 0, borderWidth: 2 },
+      { label: "Rx", data: trend.map((r) => r.trx), backgroundColor: accent, borderRadius: 2, yAxisID: "y" } ] },
     options: { interaction: { mode: "index", intersect: false }, scales: { y: { title: { display: true, text: "Rx" } }, y2: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "Calls" } } } },
   });
   draw("c-region", {
     type: "bar",
-    data: { labels: regions.map((r) => r.name), datasets: [{ label: "Rx per call", data: regions.map((r) => r.trx_per_call), backgroundColor: accent2, borderRadius: 8 }] },
+    data: { labels: regions.map((r) => r.name), datasets: [{ label: "Rx per call", data: regions.map((r) => r.trx_per_call), backgroundColor: accent, borderRadius: 2 }] },
     options: { plugins: { legend: { display: false } } },
   });
   const top = await api("/api/top-hcps", { limit: 10 });
@@ -106,11 +155,11 @@ async function loadOverview() {
 
 async function loadModel() {
   const { model, roi } = await api("/api/model");
-  const accent = cssVar("--accent"), accent2 = cssVar("--accent-2");
+  const accent = cssVar("--accent"), amber = cssVar("--amber");
   const tiers = Object.entries(model.tier_beta).sort();
   draw("c-elast", {
     type: "bar",
-    data: { labels: tiers.map(([t]) => `Tier ${t}`), datasets: [{ label: "Elasticity", data: tiers.map(([, b]) => b), backgroundColor: accent, borderRadius: 8 }] },
+    data: { labels: tiers.map(([t]) => `Tier ${t}`), datasets: [{ label: "Elasticity", data: tiers.map(([, b]) => b), backgroundColor: accent, borderRadius: 2 }] },
     options: { plugins: { legend: { display: false } } },
   });
   table("t-model", [
@@ -120,7 +169,7 @@ async function loadModel() {
   ], model.terms);
   draw("c-roi", {
     type: "bar",
-    data: { labels: roi.map((r) => `${r.channel} ${r.scope === "All" ? "" : "(" + r.scope + ")"}`.trim()), datasets: [{ label: "ROI (x)", data: roi.map((r) => r.roi), backgroundColor: roi.map((r) => (r.roi >= 1 ? accent2 : cssVar("--bad"))), borderRadius: 8 }] },
+    data: { labels: roi.map((r) => `${r.channel} ${r.scope === "All" ? "" : "(" + r.scope + ")"}`.trim()), datasets: [{ label: "ROI (x)", data: roi.map((r) => r.roi), backgroundColor: roi.map((r) => (r.roi >= 1 ? accent : cssVar("--bad"))), borderRadius: 2 }] },
     options: { indexAxis: "y", plugins: { legend: { display: false } } },
   });
   table("t-roi", [
@@ -175,7 +224,7 @@ async function refresh() {
   try {
     await loadOverview();
     try { await Promise.all([loadModel(), loadOptimizer(), loadInsights()]); }
-    catch (e) { if (e.status === 422) showNotice(e.message); else throw e; }
+    catch (e) { if (e.status === 422) { clearModelPanels(); showNotice(e.message); } else throw e; }
   } catch (e) {
     showNotice(`Could not load data: ${e.message}`);
   } finally {
@@ -198,8 +247,8 @@ function init() {
     fillSelect("f-start", months, "Earliest");
     fillSelect("f-end", months, "Latest");
     $("budget").min = -30; $("budget").max = 30;
-    Object.values(FILTER_IDS).forEach((id) => $(id).addEventListener("change", refresh));
-    $("reset").addEventListener("click", () => { Object.values(FILTER_IDS).forEach((id) => ($(id).value = "")); $("budget").value = 0; refresh(); });
+    Object.values(FILTER_IDS).forEach((id) => { enhanceSelect($(id)); $(id).addEventListener("change", refresh); });
+    $("reset").addEventListener("click", () => { Object.values(FILTER_IDS).forEach((id) => ($(id).value = "")); syncSelects(); $("budget").value = 0; refresh(); });
     $("budget").addEventListener("input", () => {
       $("budget-val").textContent = `${$("budget").value > 0 ? "+" : ""}${$("budget").value}%`;
       clearTimeout(optTimer);

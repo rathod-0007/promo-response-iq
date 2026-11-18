@@ -5,6 +5,7 @@ import uvicorn
 
 from app.config import load_settings
 from app.db import init_db
+from app.importer import import_csv_dir
 
 
 def main() -> None:
@@ -12,8 +13,11 @@ def main() -> None:
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--reset-data", action="store_true", help="regenerate the warehouse from config.json")
+    ap.add_argument("--import-dir", help="folder with hcp.csv, activity.csv, rx.csv to load instead of synthetic data")
     args = ap.parse_args()
-    if args.reset_data:
+    if args.import_dir:
+        print("Imported:", import_csv_dir(load_settings(), args.import_dir))
+    elif args.reset_data:
         init_db(load_settings(), reset=True)
     uvicorn.run("app.main:get_app", factory=True, host=args.host, port=args.port)
 
