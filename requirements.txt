@@ -1,0 +1,8 @@
+fastapi==0.163.2
+uvicorn[standard]==0.54.0
+pandas==3.1.1
+numpy==2.5.5
+openpyxl==3.1.5
+python-pptx==1.0.2
+pytest==9.2.0
+httpx==0.28.1

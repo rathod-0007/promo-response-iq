@@ -1,0 +1,32 @@
+{
+  "database": "data/promo.db",
+  "simulation": {
+    "seed": 42,
+    "n_hcps": 600,
+    "start_month": "2024-01",
+    "n_months": 24,
+    "specialties": ["Cardiology", "Endocrinology", "Primary Care", "Neurology"],
+    "regions": ["Northeast", "Southeast", "Midwest", "West"],
+    "tier_share": {"A": 0.2, "B": 0.3, "C": 0.5},
+    "mean_calls": {"A": 4.0, "B": 2.5, "C": 1.0},
+    "potential_mean": {"A": 14.0, "B": 7.0, "C": 3.0},
+    "true_call_elasticity": {"A": 0.10, "B": 0.22, "C": 0.15},
+    "true_sample_elasticity": 0.05,
+    "true_email_elasticity": 0.03,
+    "true_decay": 0.5,
+    "monthly_trend": 0.006,
+    "seasonality": [0.92, 0.95, 1.02, 1.03, 1.05, 1.04, 0.98, 0.94, 1.03, 1.06, 1.04, 0.94]
+  },
+  "economics": {
+    "revenue_per_trx": 320.0,
+    "cost_per_call": 150.0,
+    "cost_per_sample": 12.0,
+    "cost_per_email": 2.0
+  },
+  "model": {
+    "decay_grid": [0.0, 0.25, 0.5, 0.75],
+    "max_calls_per_hcp": 10,
+    "recent_months": 6,
+    "min_observations": 200
+  }
+}
