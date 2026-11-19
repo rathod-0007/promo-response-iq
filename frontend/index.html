@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PromoResponseIQ</title>
+  <!-- No flash of unstyled page: set the theme and background before first paint, and keep the body hidden until main.js has applied the stylesheet. -->
+  <script>try { var t = localStorage.getItem("theme"); if (!t && matchMedia("(prefers-color-scheme: dark)").matches) t = "dark"; if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+  <style>html { background: #f6f5f1; } html[data-theme="dark"] { background: #101316; } html:not(.ready) body { visibility: hidden; }</style>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231a1f24'/%3E%3Cpath d='M9 22V14M15 22V10M21 22v-6' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
 </head>
 <body>

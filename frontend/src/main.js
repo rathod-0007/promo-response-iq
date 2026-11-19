@@ -183,6 +183,7 @@ function bindControls() {
 }
 
 async function init() {
+  document.documentElement.classList.add("ready");   // the stylesheet is applied: reveal the page (see index.html)
   initTheme();
   initSidebar();
   bindControls();

@@ -52,6 +52,10 @@ export async function load() {
     { key: "trx", label: T("{metric}"), num: true, f: (v) => fmt(v) }, { key: "calls", label: T("{primary}"), num: true, f: (v) => fmt(v) },
   ], top, { empty: T("No {entities} for these filters") });
 
+  loadInsights().catch((e) => showNotice(`Could not load insights: ${e.message}`));   // slow (runs every engine): do not block the page on it
+}
+
+async function loadInsights() {
   try {
     const { insights } = await api("/api/insights", { budget_change_pct: state.budget });
     const ol = $("insights");
