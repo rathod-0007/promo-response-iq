@@ -96,11 +96,12 @@ footer { text-align: center; color: var(--muted); font-size: 12px; padding: 28px
   background-repeat: no-repeat; background-position: 10px center; background-size: 16px; color: var(--ink); font: inherit; font-size: 13px; outline: none; -webkit-appearance: none; appearance: none; }
 .combo-pop input::placeholder { color: var(--muted); }
 .combo-pop input::-webkit-search-cancel-button { display: none; }
-.combo-pop input:focus { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.combo-pop input:focus { border-color: var(--rule); background-color: var(--soft); box-shadow: none; }
 .combo-pop ul { list-style: none; margin: 8px -8px 0; padding: 6px 8px 0; border-top: 1px solid var(--rule); max-height: 240px; overflow-y: auto; }
 .combo-pop li { padding: 9px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
-.combo-pop li.act, .combo-pop li:hover { background: var(--soft); }
-.combo-pop li.sel { background: color-mix(in srgb, var(--accent) 11%, transparent); color: var(--accent); font-weight: 600; }
+.combo-pop li.act, .combo-pop li:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.combo-pop li.sel { background: color-mix(in srgb, var(--accent) 6%, transparent); color: var(--accent); font-weight: 600; }
+.combo-pop li.sel.act, .combo-pop li.sel:hover { background: color-mix(in srgb, var(--accent) 9%, transparent); }
 .combo-empty { padding: 12px; color: var(--muted); font-size: 13px; text-align: center; }
 
 @media (max-width: 860px) {
