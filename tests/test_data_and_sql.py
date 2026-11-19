@@ -1,10 +1,8 @@
-import sqlite3
-
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app import analytics as an
 from app.datagen import generate, month_labels
-from app.db import connect
 
 
 def test_generator_is_deterministic_and_shaped(settings):
@@ -23,24 +21,29 @@ def test_month_labels():
     assert month_labels("2024-11", 3) == ["2024-11", "2024-12", "2025-01"]
 
 
-def test_schema_constraints(settings):
-    conn = connect(settings)
-    with pytest.raises(sqlite3.IntegrityError):
-        conn.execute("INSERT INTO activity VALUES (1, '2024-01', -1, 0, 0)")
-    with pytest.raises(sqlite3.IntegrityError):
-        conn.execute("INSERT INTO activity VALUES (99999, '2030-01', 1, 0, 0)")
-    with pytest.raises(sqlite3.IntegrityError):
-        conn.execute("INSERT INTO hcp VALUES (99999, 'x', 's', 'r', 'Z')")
-    conn.close()
+def test_schema_constraints(sql):
+    with pytest.raises(IntegrityError):
+        sql("INSERT INTO activity VALUES (1, '2024-01', -1, 0, 0)")      # negative calls
+    with pytest.raises(IntegrityError):
+        sql("INSERT INTO activity VALUES (99999, '2030-01', 1, 0, 0)")   # unknown HCP
+    with pytest.raises(IntegrityError):
+        sql("INSERT INTO hcp VALUES (99999, 'x', 's', 'r', 'Z')")        # bad tier
+    with pytest.raises(IntegrityError):
+        sql("INSERT INTO rx VALUES (1, '2024-13', 1)")                   # bad month
+    with pytest.raises(IntegrityError):
+        sql("INSERT INTO rx VALUES (1, '2024-01', 1), (1, '2024-01', 2)")  # duplicate key
 
 
-def test_views_reconcile_with_tables(settings):
-    conn = connect(settings)
-    tot_rx = conn.execute("SELECT SUM(trx) FROM rx").fetchone()[0]
-    tot_view = conn.execute("SELECT SUM(trx) FROM v_monthly_summary").fetchone()[0]
-    reg_view = conn.execute("SELECT SUM(trx) FROM v_region_summary").fetchone()[0]
-    conn.close()
+def test_views_reconcile_with_tables(sql):
+    tot_rx = sql("SELECT SUM(trx) FROM rx")[0][0]
+    tot_view = sql("SELECT SUM(trx) FROM v_monthly_summary")[0][0]
+    reg_view = sql("SELECT SUM(trx) FROM v_region_summary")[0][0]
     assert tot_rx == tot_view == reg_view
+
+
+def test_region_view_ratio_is_float(sql):
+    row = sql("SELECT trx, calls, trx_per_call FROM v_region_summary LIMIT 1")[0]
+    assert isinstance(row[2], float) and abs(row[2] - row[0] / row[1]) < 1e-3
 
 
 def test_kpis_match_direct_sums(settings):

@@ -10,7 +10,7 @@ A pharma brand spends a fixed monthly budget on rep calls, samples and e-mails. 
 ## What it does
 | Layer | Implementation |
 |---|---|
-| Warehouse | SQLite schema with constraints, indexes and BI-ready views (`v_hcp_month`, `v_monthly_summary`, `v_region_summary`) - connectable from Tableau / Power BI |
+| Warehouse | PostgreSQL schema with constraints, indexes and BI-ready views (`v_hcp_month`, `v_monthly_summary`, `v_region_summary`) - connectable from Tableau / Power BI |
 | Analytics | Parameterised SQL + pandas: KPIs, trend, region / specialty / tier breakdowns, top prescribers |
 | Response model | HCP fixed-effects log-log regression with adstock carry-over (decay chosen by grid search), per-tier call elasticities, 95% CIs |
 | Channel ROI | Incremental Rx and ROI per call, sample and e-mail using configurable economics |
@@ -26,26 +26,34 @@ Rx is a count with heavy Poisson noise, so the within-HCP R² is low (about 0.08
 Put `hcp.csv`, `activity.csv` and `rx.csv` (columns in `app/importer.py`) in a folder and run `python run.py --import-dir <folder>`. Files are validated first; a bad file never overwrites the live warehouse.
 
 ## Run it
+Needs Python 3.13+ and a PostgreSQL 14+ database. The quickest database is Docker:
+
+```powershell
+docker compose up -d db
+```
+
+Then:
+
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
-.\.venv\Scripts\python run.py            # http://127.0.0.1:8000
+.\.venv\Scripts\python run.py                # http://127.0.0.1:8000 (loads synthetic data on first start)
 .\.venv\Scripts\python run.py --reset-data   # regenerate the warehouse
-.\.venv\Scripts\python -m pytest -q      # 36 tests
+.\.venv\Scripts\python -m pytest -q          # 41 tests, each run in its own throw-away schema
 ```
 
-## Docker
+Use another PostgreSQL by setting `DATABASE_URL` (see `.env.example`); `DB_SCHEMA` picks the schema. Data loads are transactional: a failed load leaves the previous data intact.
+
+## Docker (app + database)
 ```powershell
-docker build -t promo-response-iq .
-docker run -p 8000:8000 promo-response-iq
+docker compose up --build        # app on http://localhost:8000
 ```
-
 
 ## API
-`/api/meta`, `/api/kpis`, `/api/trend`, `/api/breakdown/{region|specialty|tier}`, `/api/top-hcps`, `/api/model`, `/api/optimize?budget_change_pct=`, `/api/insights`, `/api/export/xlsx`, `/api/export/pptx`. Filters: `region`, `specialty`, `tier`, `start`, `end` (YYYY-MM). Interactive docs at `/docs`.
+`/api/health`, `/api/meta`, `/api/kpis`, `/api/trend`, `/api/breakdown/{region|specialty|tier}`, `/api/top-hcps`, `/api/model`, `/api/optimize?budget_change_pct=`, `/api/insights`, `/api/export/xlsx`, `/api/export/pptx`. Filters: `region`, `specialty`, `tier`, `start`, `end` (YYYY-MM). Interactive docs at `/docs`.
 
 ## Stack
-Python, SQL (SQLite), pandas, NumPy, FastAPI, Chart.js, openpyxl, python-pptx, pytest.
+Python, SQL (PostgreSQL), SQLAlchemy, psycopg, pandas, NumPy, FastAPI, Chart.js, openpyxl, python-pptx, pytest.
 
 ## Layout
 ```

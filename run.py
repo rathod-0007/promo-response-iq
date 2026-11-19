@@ -4,7 +4,7 @@ import argparse
 import uvicorn
 
 from app.config import load_settings
-from app.db import init_db
+from app.db import get_engine, init_db
 from app.importer import import_csv_dir
 
 
@@ -19,6 +19,8 @@ def main() -> None:
         print("Imported:", import_csv_dir(load_settings(), args.import_dir))
     elif args.reset_data:
         init_db(load_settings(), reset=True)
+    s = load_settings()
+    print("Database:", get_engine(s).url.render_as_string(hide_password=True), "schema:", s.schema)
     uvicorn.run("app.main:get_app", factory=True, host=args.host, port=args.port)
 
 

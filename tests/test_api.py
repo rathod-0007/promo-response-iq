@@ -14,7 +14,7 @@ def client(settings):
 
 
 def test_health_and_index(client):
-    assert client.get("/api/health").json() == {"status": "ok"}
+    assert client.get("/api/health").json() == {"status": "ok", "database": "postgresql"}
     r = client.get("/")
     assert r.status_code == 200 and "PromoResponseIQ" in r.text
     assert client.get("/static/app.js").status_code == 200
@@ -75,3 +75,16 @@ def test_powerpoint_export(client):
     assert r.status_code == 200
     deck = Presentation(io.BytesIO(r.content))
     assert len(deck.slides) == 5
+
+
+def test_outage_handler_maps_operational_error(client):
+    from sqlalchemy.exc import OperationalError
+    from app import service
+
+    original = service.get_model
+    service.get_model = lambda *a, **k: (_ for _ in ()).throw(OperationalError("SELECT 1", {}, Exception("down")))
+    try:
+        r = client.get("/api/model")
+    finally:
+        service.get_model = original
+    assert r.status_code == 503 and "unavailable" in r.json()["detail"].lower()

@@ -3,17 +3,18 @@ from __future__ import annotations
 
 from . import analytics as an
 from .config import Settings
+from .db import data_version
 from .modeling import ModelResult, ModelError, channel_roi, fit_response_model, optimize_calls
 
 _cache: dict = {}
 
 
-def _db_stamp(settings: Settings) -> float:
-    return settings.db_path.stat().st_mtime
+def _db_stamp(settings: Settings) -> int:
+    return data_version(settings)
 
 
 def get_model(settings: Settings, f: an.Filters) -> tuple[ModelResult, object]:
-    key = (str(settings.db_path), _db_stamp(settings), f.key())
+    key = (settings.database_url, settings.schema, _db_stamp(settings), f.key())
     if key not in _cache:
         panel = an.panel(settings, f)
         m = settings.model

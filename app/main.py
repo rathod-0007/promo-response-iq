@@ -3,14 +3,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, Response
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from fastapi.staticfiles import StaticFiles
 
 from . import analytics as an
 from . import exports, service
 from .config import Settings, load_settings
-from .db import ensure_db
+from .db import ensure_db, get_engine
 from .modeling import ModelError
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -47,9 +49,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except ModelError as e:
             raise HTTPException(422, str(e))
 
+    @app.exception_handler(OperationalError)
+    def db_down(_: Request, __: OperationalError):
+        return JSONResponse({"detail": "Database unavailable. Check DATABASE_URL and that PostgreSQL is running."}, status_code=503)
+
     @app.get("/api/health")
     def health():
-        return {"status": "ok"}
+        with get_engine(settings).connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "postgresql"}
 
     @app.get("/api/meta")
     def meta():
