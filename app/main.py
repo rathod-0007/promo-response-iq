@@ -86,6 +86,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             tier: str | None = None, start: str | None = None, end: str | None = None):
         return _records(an.top_hcps(settings, filters(region, specialty, tier, start, end), limit))
 
+    @app.get("/api/hcps")
+    def hcps(q: str = Query("", max_length=100), sort: str = "trx", order: str = Query("desc", pattern="^(asc|desc)$"),
+             page: int = Query(1, ge=1), page_size: int = Query(15, ge=5, le=100), region: str | None = None,
+             specialty: str | None = None, tier: str | None = None, start: str | None = None, end: str | None = None):
+        if sort not in an.HCP_SORTS:
+            raise HTTPException(422, f"Unknown sort column: {sort}")
+        res = an.hcp_list(settings, filters(region, specialty, tier, start, end), q, sort, order, page, page_size)
+        return {**res, "rows": _records(res["rows"])}
+
+    @app.get("/api/data-info")
+    def data_info():
+        return an.data_info(settings)
+
     @app.get("/api/model")
     def model(region: str | None = None, specialty: str | None = None, tier: str | None = None,
               start: str | None = None, end: str | None = None):

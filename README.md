@@ -4,6 +4,9 @@
 
 **Which doctors should a pharma sales team call more, and which less?** PromoResponseIQ answers that with a SQL warehouse, a promotion-response model and a call-allocation optimizer, served through a live dashboard with one-click Excel and PowerPoint exports.
 
+## Pages
+Sidebar navigation (hash routes, shareable links): **Overview** (KPIs, auto-written insights, trend, top prescribers), **Response model** (elasticities, channel ROI, carry-over search), **Optimizer** (budget slider, tier and HCP-level plan), **HCP explorer** (server-side search, sort and paging over all prescribers), **Data & reports** (warehouse status, Excel/PowerPoint downloads, import instructions). Filters apply to every analysis page.
+
 ## The business problem
 A pharma brand spends a fixed monthly budget on rep calls, samples and e-mails. Returns diminish, and responsiveness differs by HCP segment. The goal: measure each channel's true incremental Rx, then reallocate calls to lift prescriptions at the same budget.
 
@@ -39,7 +42,7 @@ python -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
 .\.venv\Scripts\python run.py                # http://127.0.0.1:8000 (loads synthetic data on first start)
 .\.venv\Scripts\python run.py --reset-data   # regenerate the warehouse
-.\.venv\Scripts\python -m pytest -q          # 41 tests, each run in its own throw-away schema
+.\.venv\Scripts\python -m pytest -q          # 45 tests, each run in its own throw-away schema
 ```
 
 Use another PostgreSQL by setting `DATABASE_URL` (see `.env.example`); `DB_SCHEMA` picks the schema. Data loads are transactional: a failed load leaves the previous data intact.
@@ -50,7 +53,7 @@ docker compose up --build        # app on http://localhost:8000
 ```
 
 ## API
-`/api/health`, `/api/meta`, `/api/kpis`, `/api/trend`, `/api/breakdown/{region|specialty|tier}`, `/api/top-hcps`, `/api/model`, `/api/optimize?budget_change_pct=`, `/api/insights`, `/api/export/xlsx`, `/api/export/pptx`. Filters: `region`, `specialty`, `tier`, `start`, `end` (YYYY-MM). Interactive docs at `/docs`.
+`/api/health`, `/api/data-info`, `/api/hcps`, `/api/meta`, `/api/kpis`, `/api/trend`, `/api/breakdown/{region|specialty|tier}`, `/api/top-hcps`, `/api/model`, `/api/optimize?budget_change_pct=`, `/api/insights`, `/api/export/xlsx`, `/api/export/pptx`. Filters: `region`, `specialty`, `tier`, `start`, `end` (YYYY-MM). Interactive docs at `/docs`.
 
 ## Stack
 Python, SQL (PostgreSQL), SQLAlchemy, psycopg, pandas, NumPy, FastAPI, Chart.js, openpyxl, python-pptx, pytest.

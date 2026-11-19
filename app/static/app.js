@@ -4,9 +4,11 @@ const $ = (id) => document.getElementById(id);
 const FILTER_IDS = { region: "f-region", specialty: "f-specialty", tier: "f-tier", start: "f-start", end: "f-end" };
 const charts = {};
 let meta = null;
+const state = { budget: 0, page: "overview", hcp: { q: "", sort: "trx", order: "desc", page: 1, size: 15 } };
 
 const fmt = (n, d = 0) => (n === null || n === undefined ? "n/a" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d }));
 const money = (n) => (n === null || n === undefined ? "n/a" : (n < 0 ? "-$" : "$") + fmt(Math.abs(n)));
+const signed = (n) => `${n > 0 ? "+" : ""}${n}`;
 
 function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
@@ -83,11 +85,27 @@ function enhanceSelect(sel) {
 }
 const syncSelects = () => combos.forEach((c) => c.sync());
 
-function table(id, cols, rows) {
+/* ---------- small UI helpers ---------- */
+function table(id, cols, rows, opts = {}) {
   const t = $(id); t.innerHTML = "";
   const head = t.createTHead().insertRow();
-  cols.forEach((c) => { const th = document.createElement("th"); th.textContent = c.label; if (c.num) th.className = "num"; head.appendChild(th); });
+  cols.forEach((c) => {
+    const th = document.createElement("th"); th.textContent = c.label;
+    if (c.num) th.classList.add("num");
+    if (opts.onSort && c.sort) {
+      th.classList.add("sortable"); th.tabIndex = 0;
+      if (opts.sort && opts.sort.key === c.key) th.textContent = `${c.label} ${opts.sort.order === "asc" ? "↑" : "↓"}`;
+      const go = () => opts.onSort(c.key);
+      th.addEventListener("click", go);
+      th.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    }
+    head.appendChild(th);
+  });
   const body = t.createTBody();
+  if (!rows.length) {
+    const td = body.insertRow().insertCell(); td.colSpan = cols.length; td.className = "empty"; td.textContent = opts.empty || "No data";
+    return;
+  }
   rows.forEach((r) => {
     const tr = body.insertRow();
     cols.forEach((c) => { const td = tr.insertCell(); td.textContent = c.f ? c.f(r[c.key], r) : r[c.key]; if (c.num) td.className = "num"; });
@@ -109,25 +127,28 @@ function kpiCards(id, items) {
 function draw(id, config) {
   if (charts[id]) charts[id].destroy();
   Chart.defaults.color = cssVar("--muted");
-  Chart.defaults.borderColor = cssVar("--border");
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
   Chart.defaults.font.size = 11;
   Chart.defaults.borderColor = cssVar("--rule");
   charts[id] = new Chart($(id), { ...config, options: { responsive: true, maintainAspectRatio: false, ...config.options } });
 }
 
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
 function clearModelPanels() {
-  ["c-elast", "c-roi"].forEach((id) => { if (charts[id]) { charts[id].destroy(); delete charts[id]; } });
-  ["t-model", "t-roi", "t-tier", "t-moves", "opt-kpis", "insights"].forEach((id) => { $(id).innerHTML = ""; });
+  ["c-elast", "c-roi"].forEach(destroyChart);
+  ["t-model", "t-roi", "t-decay", "t-tier", "t-moves", "opt-kpis", "insights"].forEach((id) => { $(id).innerHTML = ""; });
 }
 
 function showNotice(msg) { const n = $("notice"); n.hidden = !msg; n.textContent = msg || ""; }
 
+/* ---------- page loaders ---------- */
 async function loadOverview() {
-  const [kpis, trend, regions] = await Promise.all([api("/api/kpis"), api("/api/trend"), api("/api/breakdown/region")]);
+  const [kpis, trend, regions, top] = await Promise.all([
+    api("/api/kpis"), api("/api/trend"), api("/api/breakdown/region"), api("/api/top-hcps", { limit: 10 })]);
   const chg = kpis.trx_change_pct_6m;
   kpiCards("kpis", [
-    { label: "Total Rx", value: fmt(kpis.total_trx), sub: chg === null ? "" : `${chg >= 0 ? "+" : ""}${chg}% vs prior 6M`, tone: chg >= 0 ? "good" : "bad" },
+    { label: "Total Rx", value: fmt(kpis.total_trx), sub: chg === null ? "" : `${signed(chg)}% vs prior 6M`, tone: chg >= 0 ? "good" : "bad" },
     { label: "Calls", value: fmt(kpis.total_calls) },
     { label: "Rx per call", value: fmt(kpis.trx_per_call, 2) },
     { label: "Active HCPs", value: fmt(kpis.active_hcps) },
@@ -138,7 +159,7 @@ async function loadOverview() {
     type: "bar",
     data: { labels: trend.map((r) => r.month), datasets: [
       { type: "line", label: "Calls", data: trend.map((r) => r.calls), borderColor: amber, backgroundColor: amber, yAxisID: "y2", tension: .3, pointRadius: 0, borderWidth: 2 },
-      { label: "Rx", data: trend.map((r) => r.trx), backgroundColor: accent, borderRadius: 2, yAxisID: "y" } ] },
+      { label: "Rx", data: trend.map((r) => r.trx), backgroundColor: accent, borderRadius: 2, yAxisID: "y" }] },
     options: { interaction: { mode: "index", intersect: false }, scales: { y: { title: { display: true, text: "Rx" } }, y2: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "Calls" } } } },
   });
   draw("c-region", {
@@ -146,16 +167,24 @@ async function loadOverview() {
     data: { labels: regions.map((r) => r.name), datasets: [{ label: "Rx per call", data: regions.map((r) => r.trx_per_call), backgroundColor: accent, borderRadius: 2 }] },
     options: { plugins: { legend: { display: false } } },
   });
-  const top = await api("/api/top-hcps", { limit: 10 });
   table("t-top", [
     { key: "name", label: "HCP" }, { key: "specialty", label: "Specialty" }, { key: "region", label: "Region" },
     { key: "tier", label: "Tier" }, { key: "trx", label: "Rx", num: true, f: (v) => fmt(v) }, { key: "calls", label: "Calls", num: true, f: (v) => fmt(v) },
-  ], top);
+  ], top, { empty: "No prescribers for these filters" });
+  try {
+    const { insights } = await api("/api/insights", { budget_change_pct: state.budget });
+    const ul = $("insights"); ul.innerHTML = "";
+    insights.forEach((t) => { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); });
+  } catch (e) {
+    $("insights").innerHTML = "";
+    if (e.status === 422) showNotice(e.message); else throw e;
+  }
 }
 
 async function loadModel() {
+  clearModelPanels();
   const { model, roi } = await api("/api/model");
-  const accent = cssVar("--accent"), amber = cssVar("--amber");
+  const accent = cssVar("--accent");
   const tiers = Object.entries(model.tier_beta).sort();
   draw("c-elast", {
     type: "bar",
@@ -177,17 +206,24 @@ async function loadModel() {
     { key: "incr_trx_per_unit", label: "Rx / unit", num: true, f: (v) => fmt(v, 3) },
     { key: "cost_per_unit", label: "Cost", num: true, f: money }, { key: "roi", label: "ROI", num: true, f: (v) => `${fmt(v, 2)}x` },
   ], roi);
-  $("insights").dataset.ready = "1";
+  const decays = Object.entries(model.decay_scores).map(([d, r2]) => ({ decay: Number(d), r2, best: Number(d) === model.decay }));
+  table("t-decay", [
+    { key: "decay", label: "Monthly decay", f: (v) => `${fmt(v * 100)}%` },
+    { key: "r2", label: "Within-HCP R²", num: true, f: (v) => fmt(v, 4) },
+    { key: "best", label: "Selected", f: (v) => (v ? "✓ best fit" : "") },
+  ], decays);
 }
 
 async function loadOptimizer() {
-  const pct = Number($("budget").value);
-  $("budget-val").textContent = `${pct > 0 ? "+" : ""}${pct}%`;
+  const pct = state.budget;
+  $("budget").value = pct;
+  $("budget-val").textContent = `${signed(pct)}%`;
+  clearModelPanels();
   const opt = await api("/api/optimize", { budget_change_pct: pct });
   const s = opt.summary;
   kpiCards("opt-kpis", [
     { label: "Calls / month", value: `${fmt(s.current_calls)} → ${fmt(s.recommended_calls)}` },
-    { label: "Expected Rx", value: `${fmt(s.current_trx)} → ${fmt(s.expected_trx)}`, sub: s.uplift_pct === null ? "" : `${s.uplift_pct >= 0 ? "+" : ""}${s.uplift_pct}%`, tone: s.uplift_pct >= 0 ? "good" : "bad" },
+    { label: "Expected Rx", value: `${fmt(s.current_trx)} → ${fmt(s.expected_trx)}`, sub: s.uplift_pct === null ? "" : `${signed(s.uplift_pct)}%`, tone: s.uplift_pct >= 0 ? "good" : "bad" },
     { label: "Incremental revenue", value: money(s.incremental_revenue) },
     { label: "Call cost change", value: money(s.call_cost_change) },
     { label: "Net value / month", value: money(s.net_value), tone: s.net_value >= 0 ? "good" : "bad" },
@@ -204,39 +240,108 @@ async function loadOptimizer() {
   ], opt.top_moves);
 }
 
-async function loadInsights() {
-  const pct = Number($("budget").value);
-  const { insights } = await api("/api/insights", { budget_change_pct: pct });
-  const ul = $("insights"); ul.innerHTML = "";
-  insights.forEach((t) => { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); });
+async function loadExplorer() {
+  const h = state.hcp;
+  const res = await api("/api/hcps", { q: h.q, sort: h.sort, order: h.order, page: h.page, page_size: h.size });
+  const pages = Math.max(1, Math.ceil(res.total / res.page_size));
+  if (h.page > pages) { h.page = pages; return loadExplorer(); }
+  const from = res.total ? (res.page - 1) * res.page_size + 1 : 0;
+  const to = Math.min(res.total, res.page * res.page_size);
+  $("hcp-count").textContent = `${fmt(res.total)} HCPs`;
+  $("pg-info").textContent = res.total ? `${fmt(from)}–${fmt(to)} of ${fmt(res.total)}` : "No results";
+  $("pg-prev").disabled = res.page <= 1;
+  $("pg-next").disabled = res.page >= pages;
+  const onSort = (key) => { h.order = h.sort === key && h.order === "desc" ? "asc" : "desc"; h.sort = key; h.page = 1; load(); };
+  table("t-hcps", [
+    { key: "name", label: "HCP", sort: true }, { key: "specialty", label: "Specialty", sort: true }, { key: "region", label: "Region", sort: true },
+    { key: "tier", label: "Tier", sort: true }, { key: "trx", label: "Rx", num: true, sort: true, f: (v) => fmt(v) },
+    { key: "calls", label: "Calls", num: true, sort: true, f: (v) => fmt(v) }, { key: "trx_per_call", label: "Rx / call", num: true, sort: true, f: (v) => fmt(v, 2) },
+  ], res.rows, { sort: { key: h.sort, order: h.order }, onSort, empty: "No HCPs match your search" });
+}
+
+async function loadData() {
+  const [info, health] = await Promise.all([fetch("/api/data-info").then((r) => r.json()), fetch("/api/health").then((r) => r.json())]);
+  const rows = [
+    ["Database", `${health.database} (${health.status})`], ["Schema", info.schema], ["Source", info.source],
+    ["Loaded at", new Date(info.loaded_at).toLocaleString()], ["Loads so far", fmt(info.loads)],
+    ["HCPs", fmt(info.hcps)], ["Activity rows", fmt(info.activity_rows)], ["Rx rows", fmt(info.rx_rows)],
+    ["Period", `${info.first_month} to ${info.last_month}`],
+  ];
+  const dl = $("data-info"); dl.innerHTML = "";
+  rows.forEach(([k, v]) => { const dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = k; dd.textContent = v; dl.append(dt, dd); });
+}
+
+/* ---------- router ---------- */
+const PAGES = {
+  overview: { title: "Overview", sub: "Performance at a glance", load: loadOverview, filters: true },
+  model: { title: "Response model", sub: "How strongly each channel moves prescriptions", load: loadModel, filters: true },
+  optimizer: { title: "Optimizer", sub: "What-if call allocation", load: loadOptimizer, filters: true },
+  explorer: { title: "HCP explorer", sub: "Search, sort and page through every prescriber", load: loadExplorer, filters: true },
+  data: { title: "Data & reports", sub: "Warehouse status, exports and imports", load: loadData, filters: false },
+};
+
+function currentPage() {
+  const key = location.hash.replace(/^#\/?/, "");
+  return PAGES[key] ? key : "overview";
 }
 
 function updateDownloads() {
-  const p = filterParams(); p.set("budget_change_pct", $("budget").value);
-  $("dl-xlsx").href = `/api/export/xlsx?${p}`;
-  $("dl-pptx").href = `/api/export/pptx?${p}`;
+  const p = filterParams(); p.set("budget_change_pct", state.budget);
+  ["dl-xlsx", "dl-xlsx-2"].forEach((id) => { $(id).href = `/api/export/xlsx?${p}`; });
+  ["dl-pptx", "dl-pptx-2"].forEach((id) => { $(id).href = `/api/export/pptx?${p}`; });
 }
 
-async function refresh() {
-  document.querySelector("main").classList.add("loading");
-  showNotice("");
-  updateDownloads();
+async function load() {
+  const key = state.page;
+  const main = document.querySelector("main");
+  main.classList.add("loading"); showNotice(""); updateDownloads();
   try {
-    await loadOverview();
-    try { await Promise.all([loadModel(), loadOptimizer(), loadInsights()]); }
-    catch (e) { if (e.status === 422) { clearModelPanels(); showNotice(e.message); } else throw e; }
+    await PAGES[key].load();
   } catch (e) {
-    showNotice(`Could not load data: ${e.message}`);
+    if (e.status === 422) { clearModelPanels(); showNotice(e.message); } else showNotice(`Could not load data: ${e.message}`);
   } finally {
-    document.querySelector("main").classList.remove("loading");
+    main.classList.remove("loading");
   }
 }
 
-let optTimer;
+function openMenu() { $("sidebar").classList.add("open"); $("scrim").classList.add("show"); }
+function closeMenu() { $("sidebar").classList.remove("open"); $("scrim").classList.remove("show"); }
+
+function show() {
+  const key = currentPage();
+  state.page = key;
+  Object.keys(PAGES).forEach((k) => { $(`page-${k}`).hidden = k !== key; });
+  document.querySelectorAll("#nav a").forEach((a) => {
+    const on = a.dataset.page === key;
+    a.classList.toggle("active", on);
+    if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
+  $("page-title").textContent = PAGES[key].title;
+  $("page-sub").textContent = PAGES[key].sub;
+  document.title = `${PAGES[key].title} · PromoResponseIQ`;
+  $("filters").hidden = !PAGES[key].filters;
+  closeMenu();
+  window.scrollTo(0, 0);
+  load();
+}
+
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
 function init() {
   const saved = (() => { try { return localStorage.getItem("theme"); } catch (_) { return null; } })();
   if (saved) document.documentElement.dataset.theme = saved;
   else if (window.matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.dataset.theme = "dark";
+
+  $("theme").addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("theme", next); } catch (_) { /* ignore */ }
+    if (meta) load();
+  });
+  $("menu").addEventListener("click", openMenu);
+  $("scrim").addEventListener("click", closeMenu);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
+  window.addEventListener("hashchange", () => { if (meta) show(); });
 
   fetch("/api/meta").then((r) => r.json()).then((m) => {
     meta = m;
@@ -246,23 +351,22 @@ function init() {
     fillSelect("f-tier", m.tiers, "All tiers");
     fillSelect("f-start", months, "Earliest");
     fillSelect("f-end", months, "Latest");
-    $("budget").min = -30; $("budget").max = 30;
-    Object.values(FILTER_IDS).forEach((id) => { enhanceSelect($(id)); $(id).addEventListener("change", refresh); });
-    $("reset").addEventListener("click", () => { Object.values(FILTER_IDS).forEach((id) => ($(id).value = "")); syncSelects(); $("budget").value = 0; refresh(); });
-    $("budget").addEventListener("input", () => {
-      $("budget-val").textContent = `${$("budget").value > 0 ? "+" : ""}${$("budget").value}%`;
-      clearTimeout(optTimer);
-      optTimer = setTimeout(() => { updateDownloads(); loadOptimizer().catch((e) => showNotice(e.message)); loadInsights().catch(() => {}); }, 200);
+    Object.values(FILTER_IDS).forEach((id) => {
+      enhanceSelect($(id));
+      $(id).addEventListener("change", () => { state.hcp.page = 1; load(); });
     });
-    refresh();
+    $("reset").addEventListener("click", () => {
+      Object.values(FILTER_IDS).forEach((id) => ($(id).value = ""));
+      syncSelects();
+      state.budget = 0; state.hcp.page = 1; load();
+    });
+    $("budget").addEventListener("input", () => { $("budget-val").textContent = `${signed(Number($("budget").value))}%`; });
+    $("budget").addEventListener("change", () => { state.budget = Number($("budget").value); load(); });
+    $("hcp-q").addEventListener("input", debounce(() => { state.hcp.q = $("hcp-q").value.trim(); state.hcp.page = 1; load(); }, 250));
+    $("pg-prev").addEventListener("click", () => { state.hcp.page = Math.max(1, state.hcp.page - 1); load(); });
+    $("pg-next").addEventListener("click", () => { state.hcp.page += 1; load(); });
+    show();
   }).catch((e) => showNotice(`Could not load metadata: ${e.message}`));
-
-  $("theme").addEventListener("click", () => {
-    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
-    try { localStorage.setItem("theme", next); } catch (_) { /* ignore */ }
-    if (meta) refresh();
-  });
 }
 
 document.addEventListener("DOMContentLoaded", init);

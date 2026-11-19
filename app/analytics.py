@@ -107,3 +107,51 @@ def top_hcps(settings: Settings, f: Filters, limit: int = 15) -> pd.DataFrame:
                   "FROM v_hcp_month" + where + " GROUP BY hcp_id, specialty, region, tier) t "
                   "JOIN hcp h ON h.hcp_id = t.hcp_id ORDER BY t.trx DESC, t.hcp_id LIMIT :lim",
                   {**params, "lim": int(limit)})
+
+
+HCP_SORTS = {"name": "name", "specialty": "specialty", "region": "region", "tier": "tier",
+             "trx": "trx", "calls": "calls", "samples": "samples", "emails": "emails",
+             "trx_per_call": "trx_per_call"}
+
+
+def _like(q: str) -> str:
+    """Escape LIKE wildcards so user input is matched literally (escape char is a backslash)."""
+    bs = chr(92)
+    return "%" + q.replace(bs, bs + bs).replace("%", bs + "%").replace("_", bs + "_") + "%"
+
+
+def hcp_list(settings: Settings, f: Filters, q: str = "", sort: str = "trx", order: str = "desc",
+             page: int = 1, page_size: int = 15) -> dict:
+    """Server-side search / sort / pagination over HCP totals for the filtered window."""
+    if sort not in HCP_SORTS:
+        raise ValueError(f"unsupported sort: {sort}")
+    if order not in ("asc", "desc"):
+        raise ValueError("order must be asc or desc")
+    where, params = _where(f)
+    q = (q or "").strip()[:100]
+    cte = (
+        "WITH t AS (SELECT hcp_id, specialty, region, tier, SUM(trx) AS trx, SUM(calls) AS calls, "
+        "SUM(samples) AS samples, SUM(emails) AS emails FROM v_hcp_month" + where +
+        " GROUP BY hcp_id, specialty, region, tier), "
+        "r AS (SELECT t.hcp_id, h.name, t.specialty, t.region, t.tier, t.trx, t.calls, t.samples, t.emails, "
+        "ROUND(t.trx::numeric / NULLIF(t.calls, 0), 2)::float8 AS trx_per_call "
+        "FROM t JOIN hcp h ON h.hcp_id = t.hcp_id "
+        "WHERE (:q = '' OR h.name ILIKE :like ESCAPE '\\' OR t.hcp_id::text = :q)) "
+    )
+    base = {**params, "q": q, "like": _like(q)}
+    total = int(_query(settings, cte + "SELECT COUNT(*) AS n FROM r", base).iloc[0]["n"])
+    off = (max(page, 1) - 1) * page_size
+    rows = _query(settings, cte + f"SELECT * FROM r ORDER BY {HCP_SORTS[sort]} {order.upper()} NULLS LAST, hcp_id "
+                  "LIMIT :lim OFFSET :off", {**base, "lim": int(page_size), "off": int(off)})
+    return {"total": total, "page": max(page, 1), "page_size": page_size, "rows": rows}
+
+
+def data_info(settings: Settings) -> dict:
+    last = _query(settings, "SELECT source, loaded_at FROM data_load ORDER BY load_id DESC LIMIT 1").iloc[0]
+    cnt = _query(settings, "SELECT (SELECT COUNT(*) FROM hcp) AS hcps, (SELECT COUNT(*) FROM activity) AS activity_rows, "
+                 "(SELECT COUNT(*) FROM rx) AS rx_rows, (SELECT MIN(month::text) FROM rx) AS first_month, "
+                 "(SELECT MAX(month::text) FROM rx) AS last_month, (SELECT COUNT(*) FROM data_load) AS loads").iloc[0]
+    return {"source": str(last["source"]), "loaded_at": last["loaded_at"].isoformat(),
+            "hcps": int(cnt["hcps"]), "activity_rows": int(cnt["activity_rows"]), "rx_rows": int(cnt["rx_rows"]),
+            "first_month": cnt["first_month"], "last_month": cnt["last_month"], "loads": int(cnt["loads"]),
+            "schema": settings.schema}
