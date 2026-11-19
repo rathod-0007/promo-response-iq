@@ -102,3 +102,10 @@ footer { text-align: center; color: var(--muted); font-size: 12px; padding: 28px
   .topbar { padding: 14px 16px; } main { padding: 16px; }
   .kpi { border-left: 0; border-top: 1px solid var(--rule); } .kpi:first-child { border-top: 0; }
 }
+
+/* theme toggle icon */
+.btn.icon { width: 36px; height: 34px; padding: 0; display: grid; place-items: center; }
+.btn.icon svg { width: 17px; height: 17px; }
+.btn.icon .i-sun { display: none; }
+:root[data-theme="dark"] .btn.icon .i-moon { display: none; }
+:root[data-theme="dark"] .btn.icon .i-sun { display: inline; }
