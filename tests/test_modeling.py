@@ -43,7 +43,7 @@ def test_model_rejects_small_samples(settings):
 def test_roi_rows(settings, fitted):
     panel, model = fitted
     roi = channel_roi(panel, model, settings.economics)
-    assert {r["channel"] for r in roi} == {"Calls", "Samples", "E-mails"}
+    assert {r["channel"] for r in roi} == {"calls", "samples", "emails"}
     assert all(r["incr_trx_per_unit"] >= 0 and r["roi"] is not None for r in roi)
 
 

@@ -8,12 +8,17 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-SEGMENTS = {
-    ("high", True): ("Invest", "High volume and call-responsive: protect and grow coverage"),
-    ("high", False): ("Defend", "High volume but less responsive: keep current calls, avoid adding more"),
-    ("low", True): ("Develop", "Low volume but responsive: test extra calls and digital channels"),
-    ("low", False): ("Self-serve", "Low volume and less responsive: move to e-mail and remote"),
-}
+DEFAULT_TOKENS = {"primary_l": "calls"}
+
+
+def _segments(t: dict) -> dict:
+    p = t["primary_l"]
+    return {
+        ("high", True): ("Invest", f"High volume and responsive to {p}: protect and grow coverage"),
+        ("high", False): ("Defend", f"High volume but less responsive: hold current {p}, avoid adding more"),
+        ("low", True): ("Develop", f"Low volume but responsive: test extra {p} and digital channels"),
+        ("low", False): ("Self-serve", "Low volume and less responsive: move to lower-cost channels"),
+    }
 
 
 def _share(x: pd.Series) -> pd.Series:
@@ -21,8 +26,10 @@ def _share(x: pd.Series) -> pd.Series:
     return x / tot if tot else x * 0.0
 
 
-def analyze(totals: pd.DataFrame, cfg: dict, tier_beta: dict | None = None) -> dict:
+def analyze(totals: pd.DataFrame, cfg: dict, tier_beta: dict | None = None, tokens: dict | None = None,
+            include_hcp: bool = False) -> dict:
     """totals: one row per HCP with hcp_id, name, tier, region, specialty, trx, calls."""
+    t = {**DEFAULT_TOKENS, **(tokens or {})}
     if totals.empty:
         return {"summary": {}, "deciles": [], "segments": None, "under_served": [], "over_served": []}
     d = totals.copy()
@@ -38,8 +45,8 @@ def analyze(totals: pd.DataFrame, cfg: dict, tier_beta: dict | None = None) -> d
     for dec, g in d.groupby("decile"):
         rx_s, call_s = float(g["rx_share"].sum()), float(g["call_share"].sum())
         idx = call_s / rx_s if rx_s > 0 else None
-        action = "n/a" if idx is None else ("Over-served: trim calls" if idx > over
-                                              else "Under-served: add calls" if idx < under else "Balanced")
+        action = "n/a" if idx is None else (f"Over-served: trim {t['primary_l']}" if idx > over
+                                              else f"Under-served: add {t['primary_l']}" if idx < under else "Balanced")
         rows.append({"decile": int(dec), "hcps": int(len(g)), "trx": float(g["trx"].sum()), "calls": float(g["calls"].sum()),
                      "rx_share_pct": round(rx_s * 100, 1), "call_share_pct": round(call_s * 100, 1),
                      "trx_per_call": round(float(g["trx"].sum() / g["calls"].sum()), 2) if g["calls"].sum() else None,
@@ -62,7 +69,7 @@ def analyze(totals: pd.DataFrame, cfg: dict, tier_beta: dict | None = None) -> d
         d["responsive"] = d["tier"].map(lambda t: tier_beta.get(t, 0.0) >= cut)
         d["volume"] = np.where(high, "high", "low")
         segments = []
-        for (vol, resp), (name, advice) in SEGMENTS.items():
+        for (vol, resp), (name, advice) in _segments(t).items():
             g = d[(d["volume"] == vol) & (d["responsive"] == resp)]
             segments.append({"segment": name, "volume": vol, "responsive": bool(resp), "hcps": int(len(g)),
                              "rx_share_pct": round(float(g["rx_share"].sum() * 100), 1),
@@ -75,6 +82,12 @@ def analyze(totals: pd.DataFrame, cfg: dict, tier_beta: dict | None = None) -> d
     under_df = d[high & (d["calls"] < hv_median)].sort_values(["trx", "hcp_id"], ascending=[False, True]).head(top_n)
     over_df = d[~high & (d["calls"] >= hv_median)].sort_values(["calls", "hcp_id"], ascending=[False, True]).head(top_n)
     to_rec = lambda df: df[cols].assign(trx=lambda x: x["trx"].round(0), calls=lambda x: x["calls"].round(0)).to_dict("records")
-    return {"summary": summary, "deciles": rows, "segments": segments,
-            "under_served": to_rec(under_df), "over_served": to_rec(over_df),
-            "median_calls_high_volume": round(hv_median, 1)}
+    out = {"summary": summary, "deciles": rows, "segments": segments,
+           "under_served": to_rec(under_df), "over_served": to_rec(over_df),
+           "median_calls_high_volume": round(hv_median, 1)}
+    if include_hcp:  # per-prescriber table (used by the BI publisher, too large for the API response)
+        names = {(vol, resp): nm for (vol, resp), (nm, _) in _segments(t).items()}
+        seg = [names[(v, bool(r))] for v, r in zip(d["volume"], d["responsive"])] if tier_beta else [None] * len(d)
+        out["hcp_segments"] = pd.DataFrame({"hcp_id": d["hcp_id"].astype(int), "decile": d["decile"].astype(int),
+                                            "trx": d["trx"], "calls": d["calls"], "segment": seg})
+    return out

@@ -90,5 +90,25 @@
     "under_index": 0.8,
     "high_volume_deciles": 3,
     "misaligned_top": 10
+  },
+  "upload": {
+    "dir": "uploads",
+    "max_mb": 25,
+    "max_rows": 500000,
+    "max_hcps": 5000,
+    "max_months": 60,
+    "max_tiers": 8,
+    "derived_tier_shares": {
+      "A": 0.2,
+      "B": 0.3,
+      "C": 0.5
+    }
+  },
+  "server": {
+    "cors_origins": [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173"
+    ],
+    "frontend_dist": "frontend/dist"
   }
 }

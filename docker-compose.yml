@@ -21,9 +21,12 @@ services:
       DATABASE_URL: postgresql+psycopg://promo:promo@db:5432/promo
     ports:
       - "8000:8000"
+    volumes:
+      - uploads:/srv/uploads
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
   pgdata:
+  uploads:

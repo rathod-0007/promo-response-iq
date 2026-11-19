@@ -26,7 +26,8 @@ def make_settings(schema: str, **sim_overrides) -> Settings:
     sim = copy.deepcopy(RAW["simulation"])
     sim.update(sim_overrides)
     return Settings(database_url=URL, schema=schema, simulation=sim, economics=RAW["economics"], model=RAW["model"],
-                    incentive=copy.deepcopy(RAW["incentive"]), targeting=copy.deepcopy(RAW["targeting"]))
+                    incentive=copy.deepcopy(RAW["incentive"]), targeting=copy.deepcopy(RAW["targeting"]),
+                    upload=copy.deepcopy(RAW["upload"]), server=copy.deepcopy(RAW["server"]))
 
 
 def drop_schema(s: Settings) -> None:

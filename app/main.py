@@ -1,23 +1,30 @@
-"""FastAPI app: JSON API + static dashboard."""
+"""FastAPI backend: JSON API (+ the built frontend when present).
+
+Run the API alone:  uvicorn app.main:app --port 8000
+The web UI is a separate Vite app (frontend/, port 5173 in development); after `npm run build` the API also serves it.
+"""
 from __future__ import annotations
 
+import os
+import threading
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi import Body, FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from fastapi.staticfiles import StaticFiles
 
 from . import analytics as an
-from . import exports, service
-from .db import has_territories
+from . import bi, exports, service, uploader
+from .db import has_territories, init_db
+from .profile import effective_economics, get_profile
 from .incentive import IncentiveError
-from .config import Settings, load_settings
+from .config import ROOT, Settings, load_settings
 from .db import ensure_db, get_engine
 from .modeling import ModelError
 
-STATIC = Path(__file__).resolve().parent / "static"
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
@@ -26,10 +33,37 @@ def _records(df):
     return df.astype(object).where(df.notna(), None).to_dict("records")
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+NO_FRONTEND = """<!doctype html><meta charset="utf-8"><title>PromoResponseIQ API</title>
+<body style="font:15px/1.6 system-ui;max-width:640px;margin:48px auto;padding:0 20px">
+<h1>PromoResponseIQ API is running</h1>
+<p>The web UI is a separate app. In another terminal:</p>
+<pre style="background:#f3f3f0;padding:12px;border-radius:8px">cd frontend
+npm install
+npm run dev      # http://localhost:5173</pre>
+<p>or build it once (<code>npm run build</code>) and reload this page. API docs: <a href="/docs">/docs</a>.</p>"""
+
+
+class _SpaStatic(StaticFiles):
+    """Built frontend: hashed assets cache forever, the HTML entry point never."""
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        resp.headers["Cache-Control"] = "no-cache" if resp.headers.get("content-type", "").startswith("text/html") else "public, max-age=31536000, immutable"
+        return resp
+
+
+def _cors_origins(settings: Settings) -> list[str]:
+    env = os.environ.get("CORS_ORIGINS")
+    return [o.strip() for o in env.split(",") if o.strip()] if env else list(settings.server.get("cors_origins", []))
+
+
+def create_app(settings: Settings | None = None, frontend_dir: str | Path | None = None) -> FastAPI:
     settings = settings or load_settings()
     ensure_db(settings)
+    bi.ensure_published(settings)
     app = FastAPI(title="PromoResponseIQ", version="1.0.0")
+    origins = _cors_origins(settings)
+    if origins:
+        app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"], allow_headers=["*"])
 
     def filters(region: str | None = None, specialty: str | None = None, tier: str | None = None,
                 start: str | None = None, end: str | None = None) -> an.Filters:
@@ -63,7 +97,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/meta")
     def meta():
-        return {**an.meta(settings), "economics": settings.economics, "incentive": settings.incentive,
+        profile = get_profile(settings)
+        return {**an.meta(settings), "profile": profile, "economics": effective_economics(settings, profile), "incentive": settings.incentive,
                 "has_territories": has_territories(settings),
                 "max_calls_per_hcp": settings.model["max_calls_per_hcp"]}
 
@@ -100,7 +135,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/data-info")
     def data_info():
-        return an.data_info(settings)
+        return {**an.data_info(settings), "profile": get_profile(settings)}
+
+    # ---- user data upload: inspect -> map columns -> import ----
+    def _upload_error(e: uploader.UploadError):
+        return HTTPException(422, detail={"message": str(e), "issues": e.issues})
+
+    @app.get("/api/upload/spec")
+    def upload_spec():
+        return uploader.spec(settings)
+
+    @app.get("/api/upload/template")
+    def upload_template():
+        return Response(uploader.template_csv(), media_type="text/csv",
+                        headers={"Content-Disposition": 'attachment; filename="promoresponseiq_template.csv"'})
+
+    @app.post("/api/upload/inspect")
+    async def upload_inspect(file: UploadFile = File(...)):
+        data = await file.read(settings.upload["max_mb"] * 1024 * 1024 + 1)
+        try:
+            uid = uploader.save_upload(settings, file.filename or "upload", data)
+            return uploader.inspect(settings, uid)
+        except uploader.UploadError as e:
+            raise _upload_error(e)
+
+    @app.post("/api/upload/import")
+    def upload_import(payload: dict = Body(...)):
+        mapping, options = payload.get("mapping"), payload.get("options") or {}
+        if not isinstance(mapping, dict) or not isinstance(options, dict):
+            raise HTTPException(422, "mapping and options must be objects")
+        try:
+            result = uploader.import_upload(settings, str(payload.get("upload_id", "")), mapping, options)
+        except uploader.UploadError as e:
+            raise _upload_error(e)
+        bi.ensure_published(settings)
+        return result
+
+    @app.post("/api/data/reset-sample")
+    def reset_sample():
+        init_db(settings)
+        bi.ensure_published(settings)
+        return {"status": "ok", "profile": get_profile(settings)}
+
+    # ---- BI layer: connect Tableau / Power BI / Sisense, or download the CSV pack ----
+    @app.get("/api/bi/info")
+    def bi_info():
+        return bi.catalog(settings)
+
+    @app.post("/api/bi/refresh")
+    def bi_refresh():
+        return bi.publish(settings)
+
+    @app.get("/api/export/bi")
+    def export_bi():
+        return Response(bi.csv_pack(settings), media_type="application/zip",
+                        headers={"Content-Disposition": 'attachment; filename="promoresponseiq_bi_pack.zip"'})
 
     @app.get("/api/targeting")
     def targeting(region: str | None = None, specialty: str | None = None, tier: str | None = None,
@@ -173,26 +262,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     end: str | None = None):
         return _export("pptx", region, specialty, tier, start, end, budget_change_pct)
 
-    class NoCacheStatic(StaticFiles):
-        async def get_response(self, path, scope):
-            resp = await super().get_response(path, scope)
-            resp.headers["Cache-Control"] = "no-cache"
-            return resp
-
-    app.mount("/static", NoCacheStatic(directory=STATIC), name="static")
-
-    @app.get("/")
-    def index():
-        return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+    dist = Path(frontend_dir or os.environ.get("FRONTEND_DIST") or settings.server.get("frontend_dist", "frontend/dist"))
+    dist = dist if dist.is_absolute() else ROOT / dist
+    if (dist / "index.html").exists():
+        app.mount("/", _SpaStatic(directory=dist, html=True), name="frontend")
+    else:
+        @app.get("/", response_class=HTMLResponse)
+        def index():
+            return NO_FRONTEND
 
     return app
 
 
-app = None
+class LazyApp:
+    """ASGI app that builds the FastAPI app on first use, so `uvicorn app.main:app` has no import-time side effects."""
+
+    def __init__(self):
+        self._app = None
+        self._lock = threading.Lock()
+
+    def _get(self) -> FastAPI:
+        if self._app is None:
+            with self._lock:
+                if self._app is None:
+                    self._app = create_app()
+        return self._app
+
+    async def __call__(self, scope, receive, send):
+        await self._get()(scope, receive, send)
+
+
+app = LazyApp()
 
 
 def get_app() -> FastAPI:
-    global app
-    if app is None:
-        app = create_app()
-    return app
+    return app._get()

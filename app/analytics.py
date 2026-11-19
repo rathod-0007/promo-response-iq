@@ -151,7 +151,12 @@ def data_info(settings: Settings) -> dict:
     cnt = _query(settings, "SELECT (SELECT COUNT(*) FROM hcp) AS hcps, (SELECT COUNT(*) FROM activity) AS activity_rows, "
                  "(SELECT COUNT(*) FROM rx) AS rx_rows, (SELECT MIN(month::text) FROM rx) AS first_month, "
                  "(SELECT MAX(month::text) FROM rx) AS last_month, (SELECT COUNT(*) FROM data_load) AS loads").iloc[0]
-    return {"source": str(last["source"]), "loaded_at": last["loaded_at"].isoformat(),
+    hist = _query(settings, "SELECT load_id, source, loaded_at, profile->>'name' AS name, profile->'summary' AS summary "
+                  "FROM data_load ORDER BY load_id DESC LIMIT 10")
+    history = [{"load_id": int(r.load_id), "source": r.source, "loaded_at": r.loaded_at.isoformat(),
+                "name": r.name if isinstance(r.name, str) else "Synthetic demo data",
+                "summary": r.summary if isinstance(r.summary, dict) else None} for r in hist.itertuples()]
+    return {"history": history, "source": str(last["source"]), "loaded_at": last["loaded_at"].isoformat(),
             "hcps": int(cnt["hcps"]), "activity_rows": int(cnt["activity_rows"]), "rx_rows": int(cnt["rx_rows"]),
             "first_month": cnt["first_month"], "last_month": cnt["last_month"], "loads": int(cnt["loads"]),
             "schema": settings.schema}
@@ -188,3 +193,9 @@ def data_dictionary(settings: Settings) -> list[dict]:
                                  "description": r.column_comment if isinstance(r.column_comment, str) else ""}
                                 for r in g.itertuples()]})
     return out
+
+
+def hcp_names(settings: Settings) -> pd.Series:
+    """hcp_id -> display name."""
+    df = _query(settings, "SELECT hcp_id, name FROM hcp")
+    return df.set_index("hcp_id")["name"]

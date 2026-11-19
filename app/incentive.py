@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from .config import Settings
 from .db import get_engine, has_territories
+from .profile import effective_economics
 
 
 class IncentiveError(ValueError):
@@ -90,7 +91,7 @@ def compute(settings: Settings, plan: dict, region: str | None = None, start: st
         raise IncentiveError("No complete quarter with a prior-year comparison falls inside the selected period. "
                              "Quotas need the same quarter of the previous year.")
 
-    econ_rev = float(settings.economics["revenue_per_trx"])
+    econ_rev = float(effective_economics(settings)["revenue_per_trx"])
     rows = rows.assign(quota=rows["prior_trx"] * (1 + plan["quota_growth_pct"] / 100.0))
     rows["attainment"] = rows["trx"] / rows["quota"]
     rows["payout_fraction"] = payout_fraction(rows["attainment"], plan)

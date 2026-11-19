@@ -44,6 +44,7 @@ class ModelResult:
     sample_beta: float = 0.0
     email_beta: float = 0.0
     decay_scores: dict = field(default_factory=dict)
+    channels_used: list = field(default_factory=list)  # extra channels with data: 'samples', 'emails'
 
     def to_dict(self) -> dict:
         return {
@@ -51,10 +52,11 @@ class ModelResult:
             "n_hcps": self.n_hcps, "terms": self.terms, "tier_beta": self.tier_beta,
             "sample_beta": self.sample_beta, "email_beta": self.email_beta,
             "decay_scores": {str(k): round(v, 4) for k, v in self.decay_scores.items()},
+            "channels_used": self.channels_used,
         }
 
 
-def _fit_once(tier, calls, samples, emails, trx, decay):
+def _fit_once(tier, calls, samples, emails, trx, decay, use_samples=True, use_emails=True):
     n, T = trx.shape
     tiers = sorted(set(tier))
     y = np.log1p(trx)
@@ -63,8 +65,10 @@ def _fit_once(tier, calls, samples, emails, trx, decay):
     for t in tiers:
         cols.append(ad * (tier == t)[:, None])
         names.append(f"calls_tier_{t}")
-    cols += [np.log1p(samples), np.log1p(emails)]
-    names += ["samples", "emails"]
+    if use_samples:
+        cols.append(np.log1p(samples)); names.append("samples")
+    if use_emails:
+        cols.append(np.log1p(emails)); names.append("emails")
     n_ctrl = len(cols)
     for m in range(1, T):  # month dummies absorb seasonality and trend
         d = np.zeros((n, T))
@@ -89,11 +93,12 @@ def fit_response_model(panel: pd.DataFrame, decay_grid, min_obs: int = 200) -> M
     if len(panel) < min_obs:
         raise ModelError(f"Not enough observations to fit the model ({len(panel)} < {min_obs}). Widen the filters.")
     hcps, months, tier, calls, samples, emails, trx = _matrices(panel)
+    use_samples, use_emails = bool(samples.sum() > 0), bool(emails.sum() > 0)  # channels absent from the data are left out
     if len(months) < 4:
         raise ModelError("At least 4 months of data are required to fit the model.")
     best, scores = None, {}
     for d in decay_grid:
-        names, b, se, r2 = _fit_once(tier, calls, samples, emails, trx, d)
+        names, b, se, r2 = _fit_once(tier, calls, samples, emails, trx, d, use_samples, use_emails)
         scores[d] = r2
         if best is None or r2 > best[0]:
             best = (r2, d, names, b, se)
@@ -106,7 +111,8 @@ def fit_response_model(panel: pd.DataFrame, decay_grid, min_obs: int = 200) -> M
     return ModelResult(
         decay=d, r2_within=r2, n_obs=int(trx.size), n_hcps=len(hcps), terms=terms,
         tier_beta={n.rsplit("_", 1)[1]: round(v, 4) for n, v in coef.items() if n.startswith("calls_tier_")},
-        sample_beta=round(coef["samples"], 4), email_beta=round(coef["emails"], 4), decay_scores=scores,
+        sample_beta=round(coef.get("samples", 0.0), 4), email_beta=round(coef.get("emails", 0.0), 4), decay_scores=scores,
+        channels_used=[k for k, on in (("samples", use_samples), ("emails", use_emails)) if on],
     )
 
 
@@ -118,17 +124,19 @@ def channel_roi(panel: pd.DataFrame, model: ModelResult, econ: dict) -> list[dic
     rows = []
 
     def add(channel, scope, mult, beta, base, cost):
-        incr = float(np.mean((trx[mult] + 1.0) * max(beta, 0.0) / (1.0 + base[mult]))) * (carry if channel == "Calls" else 1.0)
+        incr = float(np.mean((trx[mult] + 1.0) * max(beta, 0.0) / (1.0 + base[mult]))) * (carry if channel == "calls" else 1.0)
         value = incr * econ["revenue_per_trx"]
         rows.append({"channel": channel, "scope": scope, "incr_trx_per_unit": round(incr, 4),
                      "value_per_unit": round(value, 2), "cost_per_unit": cost,
                      "roi": round(value / cost, 2) if cost else None})
 
     for t, beta in sorted(model.tier_beta.items()):
-        add("Calls", f"Tier {t}", (tier == t)[:, None] & np.ones_like(trx, dtype=bool), beta, ad, econ["cost_per_call"])
+        add("calls", t, (tier == t)[:, None] & np.ones_like(trx, dtype=bool), beta, ad, econ["cost_per_call"])
     allm = np.ones_like(trx, dtype=bool)
-    add("Samples", "All", allm, model.sample_beta, samples, econ["cost_per_sample"])
-    add("E-mails", "All", allm, model.email_beta, emails, econ["cost_per_email"])
+    if "samples" in model.channels_used:
+        add("samples", "All", allm, model.sample_beta, samples, econ["cost_per_sample"])
+    if "emails" in model.channels_used:
+        add("emails", "All", allm, model.email_beta, emails, econ["cost_per_email"])
     return rows
 
 

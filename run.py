@@ -21,7 +21,7 @@ def main() -> None:
         init_db(load_settings(), reset=True)
     s = load_settings()
     print("Database:", get_engine(s).url.render_as_string(hide_password=True), "schema:", s.schema)
-    uvicorn.run("app.main:get_app", factory=True, host=args.host, port=args.port)
+    uvicorn.run("app.main:app", host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

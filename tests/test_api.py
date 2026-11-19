@@ -10,14 +10,11 @@ from app.main import create_app
 
 @pytest.fixture(scope="module")
 def client(settings):
-    return TestClient(create_app(settings))
+    return TestClient(create_app(settings, frontend_dir="__missing__"))
 
 
-def test_health_and_index(client):
+def test_health(client):
     assert client.get("/api/health").json() == {"status": "ok", "database": "postgresql"}
-    r = client.get("/")
-    assert r.status_code == 200 and "PromoResponseIQ" in r.text
-    assert client.get("/static/app.js").status_code == 200
 
 
 def test_meta_is_dynamic(client, settings):
@@ -66,8 +63,8 @@ def test_excel_export(client):
     r = client.get("/api/export/xlsx", params={"region": "West"})
     assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
     wb = load_workbook(io.BytesIO(r.content))
-    assert {"Summary", "Monthly Trend", "Response Model", "Channel ROI", "Call Plan"} <= set(wb.sheetnames)
-    assert wb["Call Plan"].max_row > 10
+    assert {"Summary", "Monthly Trend", "Response Model", "Channel ROI", "Calls Plan"} <= set(wb.sheetnames)
+    assert wb["Calls Plan"].max_row > 10
 
 
 def test_powerpoint_export(client):
@@ -168,17 +165,17 @@ def test_data_dictionary(client):
     assert {"hcp", "rx", "activity", "territory", "v_hcp_month", "v_territory_month"} <= set(d)
     assert d["hcp"]["kind"] == "table" and d["v_hcp_month"]["kind"] == "view"
     tier = next(c for c in d["hcp"]["columns"] if c["name"] == "tier")
-    assert tier["type"] == "text" and "potential" in tier["description"]
+    assert tier["type"] == "text" and "segment" in tier["description"]
     assert d["hcp"]["description"]
 
 
 def test_insights_mention_targeting_and_incentives(client):
     text_ = " ".join(client.get("/api/insights").json()["insights"])
-    assert "call alignment score" in text_ and "territory-quarters reach quota" in text_
+    assert "alignment score" in text_ and "territory-quarters reach quota" in text_
 
 
 def test_excel_has_new_sheets(client):
     r = client.get("/api/export/xlsx")
     wb = load_workbook(io.BytesIO(r.content))
     assert {"Targeting Deciles", "Segments", "IC By Quarter"} <= set(wb.sheetnames)
-    assert any(n.startswith("IC Territories") for n in wb.sheetnames)
+    assert any(n.startswith("IC Territory") for n in wb.sheetnames)

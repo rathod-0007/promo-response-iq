@@ -27,8 +27,6 @@ def test_schema_constraints(sql):
     with pytest.raises(IntegrityError):
         sql("INSERT INTO activity VALUES (99999, '2030-01', 1, 0, 0)")   # unknown HCP
     with pytest.raises(IntegrityError):
-        sql("INSERT INTO hcp VALUES (99999, 'x', 's', 'r', 'Z')")        # bad tier
-    with pytest.raises(IntegrityError):
         sql("INSERT INTO rx VALUES (1, '2024-13', 1)")                   # bad month
     with pytest.raises(IntegrityError):
         sql("INSERT INTO rx VALUES (1, '2024-01', 1), (1, '2024-01', 2)")  # duplicate key

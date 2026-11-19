@@ -1,5 +1,10 @@
 .venv
+.git
 __pycache__
 .pytest_cache
-data/*.db
-.git
+frontend/node_modules
+frontend/dist
+uploads
+tests
+docs
+*.log

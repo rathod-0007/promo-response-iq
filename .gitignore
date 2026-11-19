@@ -4,3 +4,6 @@ __pycache__/
 .pytest_cache/
 exports/
 server.log
+uploads/
+*.log
+frontend.log

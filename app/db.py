@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import json
+
 import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -57,7 +59,7 @@ def last_source(settings: Settings) -> str | None:
 
 
 def load_frames(settings: Settings, hcp: pd.DataFrame, activity: pd.DataFrame, rx: pd.DataFrame,
-                source: str, territory: pd.DataFrame | None = None) -> None:
+                source: str, territory: pd.DataFrame | None = None, profile: dict | None = None) -> None:
     """Replace all data in ONE transaction: any failure leaves the previous data untouched."""
     hcp = hcp.copy()
     if "territory_id" not in hcp.columns:
@@ -76,7 +78,8 @@ def load_frames(settings: Settings, hcp: pd.DataFrame, activity: pd.DataFrame, r
         activity.to_sql("activity", conn, if_exists="append", **opts)
         rx.to_sql("rx", conn, if_exists="append", **opts)
         conn.exec_driver_sql(views_sql)
-        conn.execute(text("INSERT INTO data_load (source) VALUES (:s)"), {"s": source})
+        conn.execute(text("INSERT INTO data_load (source, profile) VALUES (:s, CAST(:p AS JSONB))"),
+                     {"s": source, "p": json.dumps(profile) if profile else None})
 
 
 def init_db(settings: Settings, reset: bool = False) -> None:
@@ -85,12 +88,22 @@ def init_db(settings: Settings, reset: bool = False) -> None:
             conn.exec_driver_sql("DROP VIEW IF EXISTS v_territory_month, v_region_summary, v_monthly_summary, v_hcp_month")
             conn.exec_driver_sql("DROP TABLE IF EXISTS rx, activity, hcp, territory, data_load CASCADE")
     hcp, activity, rx = generate(settings.simulation)
-    load_frames(settings, hcp, activity, rx, "synthetic", make_territories(settings.simulation))
+    from .profile import default_profile  # local import: profile imports this module
+    load_frames(settings, hcp, activity, rx, "synthetic", make_territories(settings.simulation), default_profile(settings))
+
+
+def refresh_schema(settings: Settings) -> None:
+    """Re-apply the (idempotent) schema and view definitions so an older database picks up new views and comments."""
+    with get_engine(settings).begin() as conn:
+        conn.exec_driver_sql((SQL_DIR / "schema.sql").read_text(encoding="utf-8"))
+        conn.exec_driver_sql((SQL_DIR / "views.sql").read_text(encoding="utf-8"))
 
 
 def ensure_db(settings: Settings) -> None:
-    """Load synthetic data on first start; refresh an old synthetic load that predates territories."""
+    """Load synthetic data on first start; refresh an old synthetic load that predates territories; keep views current."""
     if not is_loaded(settings):
         init_db(settings)
     elif not has_territories(settings) and last_source(settings) == "synthetic":
         init_db(settings)
+    else:
+        refresh_schema(settings)
