@@ -1,4 +1,4 @@
-"""Generate the Tableau workbook (.twb / .twbx with .hyper extracts) from whatever data set is loaded.
+﻿"""Generate the Tableau workbook (.twb / .twbx with .hyper extracts) from whatever data set is loaded.
 
 The BI tables (see bi.py) are packaged as Tableau extracts (.hyper, made with Tableau's official Hyper API), so the
 workbook opens in Tableau Public (free; it only accepts extracts) as well as Tableau Desktop, with no database login.
@@ -240,7 +240,7 @@ def dashboard(name: str, sheets: list[Sheet], columns: int = 2, width: int = 128
         zones.append(f"        <zone h={q(100000 // rows)} id={q(zid)} name={q(sh.name)} w={q(w)} x={q(c * w)} y={q(r * (100000 // rows))} />")
     xml = f"""    <dashboard name={q(name)}>
       <style />
-      <size maxheight={q(height)} maxwidth={q(width)} minheight={q(height)} minwidth={q(width)} />
+      <size sizing-mode='automatic' />
       <zones>
         <zone h='100000' id='4' type-v2='layout-basic' w='100000' x='0' y='0'>
 {NL.join(zones)}
