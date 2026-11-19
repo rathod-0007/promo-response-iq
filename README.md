@@ -1,4 +1,4 @@
-# PromoResponseIQ
+﻿# PromoResponseIQ
 
 ![Overview](docs/overview.png)
 
@@ -70,7 +70,22 @@ They connect straight to PostgreSQL (see **BI connections** in the app for live 
 * **No database access?** Download the CSV pack (every `bi_*` object as CSV) and load the files.
 * **Read-only login:** `psql -U postgres -d promo -v bi_password="'secret'" -v schema=public -f scripts/create_bi_user.sql`.
 
-The connections and the star-schema joins are verified by the test suite and through PostgreSQL. The three BI products themselves are commercial tools and are not part of this repository.
+### Ready-made Tableau workbook and Power BI project
+Both are generated from whatever data set is loaded (sample or your upload), so titles, field names and charts follow your own labels, and a chart is only built when its columns exist and carry more than one value.
+
+| | Tableau | Power BI |
+|---|---|---|
+| Get it | **BI connections** page > Download Tableau workbook, or `python scripts/build_tableau.py` | **BI connections** page > Download Power BI project, or `python scripts/build_powerbi.py` |
+| Open with | Tableau Public (free) or Desktop: open `PromoResponseIQ.twbx` | Power BI Desktop (free): open `PromoResponseIQ.pbip`, then Home > Refresh |
+| Contents | 9 worksheets, 2 dashboards (Performance; Where to focus and incentive plan), `.hyper` extracts | 11 tables, 5 relationships, measures, 3 pages (Performance, Where to focus, Incentive plan) |
+| Data | Packaged as extracts (Tableau Public only accepts extracts), no login | CSV files read through the `DataFolder` parameter (Transform data > Edit parameters if you move the folder) |
+
+Needs `pip install -r requirements-bi.txt` (Tableau's Hyper API) for the Tableau export; the Power BI export needs nothing extra. Both were opened and checked in the real applications (screenshots in `docs/bi/`), and the generated files are validated in the test suite (every report field exists in the model, extract row counts match the database). Generated files carry machine-specific paths, so `bi/` is git-ignored: generate them on the machine that will open them. Sisense is covered by the connection steps and CSV pack only; no Sisense dashboard is built.
+
+![Tableau dashboard](docs/bi/tableau.png)
+![Power BI report](docs/bi/powerbi.png)
+
+The connections and the star-schema joins are verified by the test suite and through PostgreSQL. Tableau, Power BI and Sisense themselves are commercial tools and are not part of this repository.
 
 ## Pages
 | Page | What it answers |
@@ -101,4 +116,4 @@ $env:TEST_DATABASE_URL = "postgresql+psycopg://promo:promo@localhost:5432/promo"
 Each run uses its own throw-away schema. Covered: data and SQL constraints, model recovery of the true effects, optimizer, incentive reconciliation against SQL, targeting, upload mapping/validation/cleaning (CSV and Excel), per-data-set labels, BI views and tables, CORS, frontend serving and the API.
 
 ## API
-`/api/health`, `/api/meta`, `/api/kpis`, `/api/trend`, `/api/breakdown/{dimension}`, `/api/top-hcps`, `/api/hcps`, `/api/model`, `/api/optimize`, `/api/targeting`, `/api/incentive`, `/api/insights`, `/api/data-info`, `/api/data-dictionary`, `/api/upload/{spec,template,inspect,import}`, `/api/data/reset-sample`, `/api/bi/{info,refresh}`, `/api/export/{xlsx,pptx,bi}`. Filters: `region`, `specialty`, `tier`, `start`, `end` (YYYY-MM).
+`/api/health`, `/api/meta`, `/api/kpis`, `/api/trend`, `/api/breakdown/{dimension}`, `/api/top-hcps`, `/api/hcps`, `/api/model`, `/api/optimize`, `/api/targeting`, `/api/incentive`, `/api/insights`, `/api/data-info`, `/api/data-dictionary`, `/api/upload/{spec,template,inspect,import}`, `/api/data/reset-sample`, `/api/bi/{info,refresh}`, `/api/export/{xlsx,pptx,bi,tableau,powerbi}`. Filters: `region`, `specialty`, `tier`, `start`, `end` (YYYY-MM).

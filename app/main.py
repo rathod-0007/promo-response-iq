@@ -191,6 +191,24 @@ def create_app(settings: Settings | None = None, frontend_dir: str | Path | None
         return Response(bi.csv_pack(settings), media_type="application/zip",
                         headers={"Content-Disposition": 'attachment; filename="promoresponseiq_bi_pack.zip"'})
 
+    @app.get("/api/export/tableau")
+    def export_tableau():
+        try:
+            from . import bi_tableau
+        except ImportError:
+            raise HTTPException(503, "Tableau export needs the optional package: pip install -r requirements-bi.txt")
+        bi.ensure_published(settings)
+        return Response(bi_tableau.package_bytes(settings), media_type="application/octet-stream",
+                        headers={"Content-Disposition": 'attachment; filename="PromoResponseIQ.twbx"'})
+
+    @app.get("/api/export/powerbi")
+    def export_powerbi(data_folder: str | None = None):
+        from . import bi_powerbi
+        bi.ensure_published(settings)
+        folder = (data_folder or bi_powerbi.DEFAULT_DATA_FOLDER).rstrip("\\") + "\\"
+        return Response(bi_powerbi.package_bytes(settings, folder), media_type="application/zip",
+                        headers={"Content-Disposition": 'attachment; filename="PromoResponseIQ_powerbi.zip"'})
+
     @app.get("/api/targeting")
     def targeting(region: str | None = None, specialty: str | None = None, tier: str | None = None,
                   start: str | None = None, end: str | None = None):

@@ -1,4 +1,5 @@
 -- Analysis grain: one row per HCP per month. BI tools (Tableau / Power BI) can connect here.
+DROP VIEW IF EXISTS bi_flat_hcp_month;
 DROP VIEW IF EXISTS bi_fact_hcp_month;
 DROP VIEW IF EXISTS bi_dim_month;
 DROP VIEW IF EXISTS bi_dim_territory;
@@ -67,6 +68,18 @@ SELECT a.hcp_id, to_date(a.month::text || '-01', 'YYYY-MM-DD') AS month_start, a
        r.trx, a.calls, a.samples, a.emails
 FROM activity a JOIN rx r ON r.hcp_id = a.hcp_id AND r.month = a.month;
 
+-- One wide table for tools that work best on a single table (Tableau Public, Excel pivots).
+CREATE VIEW bi_flat_hcp_month AS
+SELECT f.hcp_id, d.hcp_external_id, d.hcp_name, d.specialty, d.region, d.tier,
+       d.territory_id, t.territory_name, t.rep_name,
+       f.month_start, m.month_key, m.year, m.quarter, m.quarter_label, m.month_name,
+       f.trx, f.calls, f.samples, f.emails
+FROM bi_fact_hcp_month f
+JOIN bi_dim_hcp d ON d.hcp_id = f.hcp_id
+JOIN bi_dim_month m ON m.month_start = f.month_start
+LEFT JOIN bi_dim_territory t ON t.territory_id = d.territory_id;
+
+COMMENT ON VIEW bi_flat_hcp_month IS 'BI flat table: every prescriber-month with all prescriber, territory and calendar attributes';
 COMMENT ON VIEW bi_dim_hcp IS 'BI dimension: one row per prescriber with segmentation attributes';
 COMMENT ON VIEW bi_dim_territory IS 'BI dimension: one row per sales territory and its rep';
 COMMENT ON VIEW bi_dim_month IS 'BI dimension: calendar months with year, quarter and month name';

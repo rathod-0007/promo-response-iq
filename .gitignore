@@ -7,3 +7,7 @@ server.log
 uploads/
 *.log
 frontend.log
+/bi/
+**/.pbi/
+**/localSettings.json
+tableau_*.log

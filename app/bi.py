@@ -26,7 +26,7 @@ from .incentive import IncentiveError, compute, resolve_plan
 from .modeling import ModelError
 from .profile import channel_label, get_profile, tier_name, tokens
 
-VIEWS = ["bi_fact_hcp_month", "bi_dim_hcp", "bi_dim_territory", "bi_dim_month"]
+VIEWS = ["bi_fact_hcp_month", "bi_flat_hcp_month", "bi_dim_hcp", "bi_dim_territory", "bi_dim_month"]
 TABLES = {
     "bi_model_terms": "Response-model coefficients with 95% confidence intervals",
     "bi_channel_roi": "Incremental volume and ROI per channel (and tier for the main channel)",
@@ -176,6 +176,26 @@ def catalog(settings: Settings) -> dict:
     return {"connection": connection_info(settings), "objects": objs,
             "refreshed_at": refreshed["refreshed_at"].isoformat() if refreshed else None,
             "notes": [n for n in (refreshed["notes"].split(" | ") if refreshed and refreshed["notes"] else [])]}
+
+
+def export_dir(settings: Settings, folder) -> dict[str, int]:
+    """Write every bi_* object as <name>.csv into `folder` (the data source of the Tableau and Power BI files)."""
+    from pathlib import Path
+    out = Path(folder)
+    out.mkdir(parents=True, exist_ok=True)
+    counts: dict[str, int] = {}
+    with get_engine(settings).connect() as conn:
+        for o in catalog(settings)["objects"]:
+            res = conn.execute(text(f'SELECT * FROM "{o["name"]}"'))
+            with open(out / f"{o['name']}.csv", "w", newline="", encoding="utf-8") as fh:
+                w = csv.writer(fh)
+                w.writerow(res.keys())
+                n = 0
+                for row in res:
+                    w.writerow(row)
+                    n += 1
+            counts[o["name"]] = n
+    return counts
 
 
 def csv_pack(settings: Settings) -> bytes:
