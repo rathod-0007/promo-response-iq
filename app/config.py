@@ -18,6 +18,8 @@ class Settings:
     simulation: dict
     economics: dict
     model: dict
+    incentive: dict
+    targeting: dict
 
     def __post_init__(self):
         if not _IDENT.match(self.schema):
@@ -31,4 +33,5 @@ def load_settings(path=None, database_url=None, schema=None) -> Settings:
         database_url=database_url or os.environ.get("DATABASE_URL") or raw["database_url"],
         schema=schema or os.environ.get("DB_SCHEMA") or raw.get("schema", "public"),
         simulation=raw["simulation"], economics=raw["economics"], model=raw["model"],
+        incentive=raw["incentive"], targeting=raw["targeting"],
     )

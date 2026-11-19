@@ -55,6 +55,15 @@ def build_workbook(report: dict) -> bytes:
     opt = report["optimization"]
     _sheet(wb, "Optimizer By Tier", pd.DataFrame(opt["by_tier"]))
     _sheet(wb, "Call Plan", opt["plan"].sort_values("delta_trx", ascending=False))
+    tg = report.get("targeting") or {}
+    if tg.get("deciles"):
+        _sheet(wb, "Targeting Deciles", pd.DataFrame(tg["deciles"]))
+    if tg.get("segments"):
+        _sheet(wb, "Segments", pd.DataFrame(tg["segments"]))
+    ic = report.get("incentive")
+    if ic:
+        _sheet(wb, "IC By Quarter", pd.DataFrame(ic["by_quarter"]))
+        _sheet(wb, f"IC Territories {ic['quarter']}", pd.DataFrame(ic["territories"]))
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
@@ -125,6 +134,22 @@ def build_deck(report: dict) -> bytes:
         f"Net value: ${sm['net_value']:,.0f} per month",
         "Shift calls from low-responsiveness HCPs to high-responsiveness HCPs; see Excel 'Call Plan' for the HCP list.",
     ])
+    tg, ic = report.get("targeting") or {}, report.get("incentive")
+    if tg.get("summary") or ic:
+        s = prs.slides.add_slide(title_body)
+        _title(s, "Targeting and incentive compensation")
+        lines = []
+        if tg.get("summary"):
+            t = tg["summary"]
+            lines.append(f"Top {t['high_volume_deciles']} deciles: {t['top_rx_share_pct']:.0f}% of Rx, "
+                         f"{t['top_call_share_pct']:.0f}% of calls; alignment score {t['alignment_score_pct']:.0f}%")
+        if ic:
+            i = ic["summary"]
+            lines += [f"{i['pct_at_or_above_target']:.0f}% of territory-quarters reach quota; "
+                      f"{i['pct_below_threshold']:.0f}% fall below the payout threshold",
+                      f"Plan pays {i['payout_vs_target_pct']:.0f}% of target incentive "
+                      f"(${i['total_payout']:,.0f}); cost of sales {i['cost_of_sales_pct']:.2f}%"]
+        _bullets(s, lines)
     buf = io.BytesIO()
     prs.save(buf)
     return buf.getvalue()

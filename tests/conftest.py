@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import uuid
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -24,11 +25,12 @@ URL = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL") or R
 def make_settings(schema: str, **sim_overrides) -> Settings:
     sim = copy.deepcopy(RAW["simulation"])
     sim.update(sim_overrides)
-    return Settings(database_url=URL, schema=schema, simulation=sim, economics=RAW["economics"], model=RAW["model"])
+    return Settings(database_url=URL, schema=schema, simulation=sim, economics=RAW["economics"], model=RAW["model"],
+                    incentive=copy.deepcopy(RAW["incentive"]), targeting=copy.deepcopy(RAW["targeting"]))
 
 
 def drop_schema(s: Settings) -> None:
-    with get_engine(Settings(URL, "public", s.simulation, s.economics, s.model)).begin() as conn:
+    with get_engine(replace(s, schema="public")).begin() as conn:
         conn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{s.schema}" CASCADE')
     dispose_engine(s)
 

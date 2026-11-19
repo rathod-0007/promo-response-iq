@@ -14,6 +14,29 @@ def month_labels(start: str, n: int) -> list[str]:
     return [str(p) for p in pd.period_range(start=start, periods=n, freq="M")]
 
 
+def make_territories(sim: dict) -> pd.DataFrame:
+    """Sales territories (one rep each), derived only from config so they are reproducible."""
+    n = int(sim["territories_per_region"])
+    rows = []
+    for ri, region in enumerate(sim["regions"]):
+        for k in range(1, n + 1):
+            rows.append({"territory_id": ri * n + k, "name": f"{region} {k:02d}",
+                         "region": region, "rep_name": f"Rep {region} {k:02d}"})
+    return pd.DataFrame(rows, columns=["territory_id", "name", "region", "rep_name"])
+
+
+def _assign_territories(sim: dict, hcp: pd.DataFrame) -> pd.Series:
+    """Spread each region's HCPs evenly over that region's territories (separate RNG stream)."""
+    rng = np.random.default_rng([sim["seed"], 1])
+    terr = make_territories(sim)
+    out = pd.Series(0, index=hcp.index, dtype="int64")
+    for region, grp in hcp.groupby("region"):
+        ids = terr.loc[terr["region"] == region, "territory_id"].to_numpy()
+        order = rng.permutation(len(grp))
+        out.loc[grp.index[order]] = ids[np.arange(len(grp)) % len(ids)]
+    return out
+
+
 def generate(sim: dict):
     rng = np.random.default_rng(sim["seed"])
     n, T = sim["n_hcps"], sim["n_months"]
@@ -29,6 +52,8 @@ def generate(sim: dict):
         "region": rng.choice(sim["regions"], size=n),
         "tier": tier,
     })
+
+    hcp["territory_id"] = _assign_territories(sim, hcp)
 
     potential = np.array([sim["potential_mean"][t] for t in tier]) * rng.lognormal(0, 0.35, n)
     intensity = np.array([sim["mean_calls"][t] for t in tier]) * rng.lognormal(0, 0.4, n)

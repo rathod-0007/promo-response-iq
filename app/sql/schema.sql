@@ -1,3 +1,10 @@
+CREATE TABLE IF NOT EXISTS territory (
+    territory_id  INTEGER PRIMARY KEY,
+    name          TEXT NOT NULL,
+    region        TEXT NOT NULL,
+    rep_name      TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS hcp (
     hcp_id      INTEGER PRIMARY KEY,
     name        TEXT    NOT NULL,
@@ -5,6 +12,7 @@ CREATE TABLE IF NOT EXISTS hcp (
     region      TEXT    NOT NULL,
     tier        TEXT    NOT NULL CHECK (tier IN ('A','B','C'))
 );
+ALTER TABLE hcp ADD COLUMN IF NOT EXISTS territory_id INTEGER REFERENCES territory(territory_id);
 
 CREATE TABLE IF NOT EXISTS activity (
     hcp_id   INTEGER NOT NULL REFERENCES hcp(hcp_id),
@@ -31,3 +39,18 @@ CREATE TABLE IF NOT EXISTS data_load (
 CREATE INDEX IF NOT EXISTS ix_activity_month ON activity(month);
 CREATE INDEX IF NOT EXISTS ix_rx_month ON rx(month);
 CREATE INDEX IF NOT EXISTS ix_hcp_dims ON hcp(region, specialty, tier);
+CREATE INDEX IF NOT EXISTS ix_hcp_territory ON hcp(territory_id);
+
+-- Data dictionary (shown on the Data & reports page)
+COMMENT ON TABLE  territory IS 'Sales territories; one field rep each';
+COMMENT ON COLUMN territory.rep_name IS 'Field representative who owns the territory';
+COMMENT ON TABLE  hcp IS 'Healthcare professionals (prescribers) with segmentation attributes';
+COMMENT ON COLUMN hcp.tier IS 'Value tier: A highest potential, C lowest';
+COMMENT ON COLUMN hcp.territory_id IS 'Territory that covers this HCP (nullable)';
+COMMENT ON TABLE  activity IS 'Monthly promotional activity per HCP';
+COMMENT ON COLUMN activity.calls IS 'Rep detailing calls in the month';
+COMMENT ON COLUMN activity.samples IS 'Product samples dropped in the month';
+COMMENT ON COLUMN activity.emails IS 'Approved e-mails sent in the month';
+COMMENT ON TABLE  rx IS 'Monthly total prescriptions (TRx) written per HCP';
+COMMENT ON COLUMN rx.trx IS 'Total prescriptions written in the month';
+COMMENT ON TABLE  data_load IS 'Audit trail of warehouse loads';

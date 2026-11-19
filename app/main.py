@@ -11,6 +11,8 @@ from fastapi.staticfiles import StaticFiles
 
 from . import analytics as an
 from . import exports, service
+from .db import has_territories
+from .incentive import IncentiveError
 from .config import Settings, load_settings
 from .db import ensure_db, get_engine
 from .modeling import ModelError
@@ -61,7 +63,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/meta")
     def meta():
-        return {**an.meta(settings), "economics": settings.economics,
+        return {**an.meta(settings), "economics": settings.economics, "incentive": settings.incentive,
+                "has_territories": has_territories(settings),
                 "max_calls_per_hcp": settings.model["max_calls_per_hcp"]}
 
     @app.get("/api/kpis")
@@ -98,6 +101,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/data-info")
     def data_info():
         return an.data_info(settings)
+
+    @app.get("/api/targeting")
+    def targeting(region: str | None = None, specialty: str | None = None, tier: str | None = None,
+                  start: str | None = None, end: str | None = None):
+        return service.get_targeting(settings, filters(region, specialty, tier, start, end))
+
+    @app.get("/api/incentive")
+    def incentive(region: str | None = None, start: str | None = None, end: str | None = None,
+                  quarter: str | None = Query(None, pattern=r"^\d{4}-Q[1-4]$"),
+                  quota_growth_pct: float | None = None, target_incentive: float | None = None,
+                  threshold_attainment: float | None = None, threshold_payout: float | None = None,
+                  accelerator: float | None = None, cap_payout: float | None = None):
+        f = filters(region, None, None, start, end)  # IC is measured on whole territories: only region/period apply
+        overrides = {"quota_growth_pct": quota_growth_pct, "target_incentive": target_incentive,
+                     "threshold_attainment": threshold_attainment, "threshold_payout": threshold_payout,
+                     "accelerator": accelerator, "cap_payout": cap_payout}
+        try:
+            return service.get_incentive(settings, overrides, f.region, f.start, f.end, quarter)
+        except IncentiveError as e:
+            raise HTTPException(422, str(e))
+
+    @app.get("/api/data-dictionary")
+    def data_dictionary():
+        return an.data_dictionary(settings)
 
     @app.get("/api/model")
     def model(region: str | None = None, specialty: str | None = None, tier: str | None = None,

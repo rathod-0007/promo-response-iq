@@ -74,7 +74,7 @@ def test_powerpoint_export(client):
     r = client.get("/api/export/pptx")
     assert r.status_code == 200
     deck = Presentation(io.BytesIO(r.content))
-    assert len(deck.slides) == 5
+    assert len(deck.slides) == 6
 
 
 def test_outage_handler_maps_operational_error(client):
@@ -123,3 +123,62 @@ def test_data_info(client, settings):
     d = client.get("/api/data-info").json()
     assert d["source"] == "synthetic" and d["hcps"] == settings.simulation["n_hcps"]
     assert d["first_month"] == settings.simulation["start_month"] and d["rx_rows"] == d["activity_rows"]
+
+
+def test_meta_exposes_incentive_defaults(client, settings):
+    m = client.get("/api/meta").json()
+    assert m["has_territories"] is True and m["incentive"]["accelerator"] == settings.incentive["accelerator"]
+
+
+def test_incentive_endpoint_and_overrides(client):
+    base = client.get("/api/incentive").json()
+    assert base["summary"]["territories"] == 24 and base["quarter"] == base["quarters"][-1]
+    hard = client.get("/api/incentive", params={"quota_growth_pct": 20}).json()
+    assert hard["summary"]["total_payout"] < base["summary"]["total_payout"]
+    assert hard["plan"]["quota_growth_pct"] == 20
+    west = client.get("/api/incentive", params={"region": "West", "quarter": base["quarters"][0]}).json()
+    assert west["quarter"] == base["quarters"][0] and {t["region"] for t in west["territories"]} == {"West"}
+
+
+def test_incentive_validation(client):
+    assert client.get("/api/incentive", params={"quarter": "2025-Q9"}).status_code == 422
+    assert client.get("/api/incentive", params={"accelerator": 50}).status_code == 422
+    assert client.get("/api/incentive", params={"region": "Mars"}).status_code == 422
+    r = client.get("/api/incentive", params={"start": "2024-01", "end": "2024-12"})
+    assert r.status_code == 422 and "prior-year" in r.json()["detail"]
+    assert client.get("/api/incentive", params={"quarter": "2019-Q1"}).status_code == 422
+
+
+def test_incentive_ignores_specialty_and_tier_filters(client):
+    a = client.get("/api/incentive").json()["summary"]
+    b = client.get("/api/incentive", params={"specialty": "Cardiology", "tier": "A"}).json()["summary"]
+    assert a == b
+
+
+def test_targeting_endpoint(client):
+    t = client.get("/api/targeting").json()
+    assert len(t["deciles"]) == 10 and len(t["segments"]) == 4 and t["summary"]["hcps"] == 600
+    west = client.get("/api/targeting", params={"region": "West"}).json()
+    assert 0 < west["summary"]["hcps"] < 600
+    assert client.get("/api/targeting", params={"tier": "Z"}).status_code == 422
+
+
+def test_data_dictionary(client):
+    d = {t["name"]: t for t in client.get("/api/data-dictionary").json()}
+    assert {"hcp", "rx", "activity", "territory", "v_hcp_month", "v_territory_month"} <= set(d)
+    assert d["hcp"]["kind"] == "table" and d["v_hcp_month"]["kind"] == "view"
+    tier = next(c for c in d["hcp"]["columns"] if c["name"] == "tier")
+    assert tier["type"] == "text" and "potential" in tier["description"]
+    assert d["hcp"]["description"]
+
+
+def test_insights_mention_targeting_and_incentives(client):
+    text_ = " ".join(client.get("/api/insights").json()["insights"])
+    assert "call alignment score" in text_ and "territory-quarters reach quota" in text_
+
+
+def test_excel_has_new_sheets(client):
+    r = client.get("/api/export/xlsx")
+    wb = load_workbook(io.BytesIO(r.content))
+    assert {"Targeting Deciles", "Segments", "IC By Quarter"} <= set(wb.sheetnames)
+    assert any(n.startswith("IC Territories") for n in wb.sheetnames)

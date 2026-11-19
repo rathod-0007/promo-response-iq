@@ -24,6 +24,12 @@
       <a href="#/optimizer" data-page="optimizer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
         Optimizer</a>
+      <a href="#/targeting" data-page="targeting">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>
+        Targeting</a>
+      <a href="#/incentive" data-page="incentive">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Incentive comp</a>
       <a href="#/explorer" data-page="explorer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
         HCP explorer</a>
@@ -64,6 +70,7 @@
         <button class="btn ghost" id="reset" type="button">Reset</button>
       </section>
 
+      <p id="page-note" class="page-note" hidden></p>
       <div id="notice" class="notice" hidden></div>
 
       <!-- Overview -->
@@ -121,6 +128,50 @@
         </section>
       </div>
 
+      <!-- Targeting -->
+      <div class="page" id="page-targeting" hidden>
+        <section class="kpis" id="tg-kpis"></section>
+        <section class="grid two">
+          <article class="card"><h2>Share of Rx vs share of calls <span class="hint">by prescriber decile (1 = biggest)</span></h2><div class="chart"><canvas id="c-deciles"></canvas></div></article>
+          <article class="card"><h2>Decile alignment</h2><table id="t-deciles"></table></article>
+        </section>
+        <section class="card">
+          <h2>Response-based segments <span class="hint">volume decile x call responsiveness of the HCP's tier</span></h2>
+          <p class="sub-block" id="tg-note" hidden></p>
+          <table id="t-segments"></table>
+        </section>
+        <section class="grid two">
+          <article class="card"><h2>Under-served high-value HCPs <span class="hint">top prescribers with below-median calls</span></h2><table id="t-under"></table></article>
+          <article class="card"><h2>Over-served low-value HCPs <span class="hint">low prescribers getting top-prescriber call levels</span></h2><table id="t-over"></table></article>
+        </section>
+      </div>
+
+      <!-- Incentive compensation -->
+      <div class="page" id="page-incentive" hidden>
+        <section class="card">
+          <div class="opt-head">
+            <div>
+              <h2>Plan design what-if</h2>
+              <p class="sub">Quota = same quarter last year x (1 + growth). Payout rises linearly to 100% at quota, then accelerates.</p>
+            </div>
+            <button class="btn ghost" id="ic-reset" type="button">Reset plan</button>
+          </div>
+          <div class="ic-controls">
+            <div class="slider"><label for="ic-growth">Quota growth <strong id="ic-growth-val"></strong></label><input id="ic-growth" type="range" min="-10" max="30" step="1"></div>
+            <div class="slider"><label for="ic-threshold">Payout threshold <strong id="ic-threshold-val"></strong></label><input id="ic-threshold" type="range" min="50" max="95" step="5"></div>
+            <div class="slider"><label for="ic-accel">Accelerator <strong id="ic-accel-val"></strong></label><input id="ic-accel" type="range" min="0" max="3" step="0.25"></div>
+            <div class="field"><span class="flabel">Quarter</span><select id="ic-quarter"></select></div>
+          </div>
+        </section>
+        <section class="kpis" id="ic-kpis"></section>
+        <section class="grid two">
+          <article class="card"><h2>Attainment distribution <span class="hint">territory-quarters; red = below payout threshold</span></h2><div class="chart short"><canvas id="c-ic-hist"></canvas></div></article>
+          <article class="card"><h2>Payout curve <span class="hint">% of target incentive earned</span></h2><div class="chart short"><canvas id="c-ic-curve"></canvas></div></article>
+        </section>
+        <section class="card"><h2>By quarter</h2><table id="t-ic-quarters"></table></section>
+        <section class="card"><h2>Territories <span class="hint" id="ic-quarter-label"></span></h2><div class="scroll-y"><table id="t-ic-terr"></table></div></section>
+      </div>
+
       <!-- HCP explorer -->
       <div class="page" id="page-explorer" hidden>
         <section class="card">
@@ -148,14 +199,20 @@
             <h2>Reports</h2>
             <p class="sub-block">Both reports follow the filters and budget slider currently selected.</p>
             <div class="report-list">
-              <a class="report" id="dl-xlsx-2" href="#"><strong>Excel workbook</strong><span>8 sheets: summary, trend, regions, model, ROI, optimizer, full call plan</span></a>
-              <a class="report" id="dl-pptx-2" href="#"><strong>PowerPoint deck</strong><span>5 slides: highlights, trend, responsiveness, recommendation</span></a>
+              <a class="report" id="dl-xlsx-2" href="#"><strong>Excel workbook</strong><span>Summary, trend, regions, model, ROI, optimizer, call plan, targeting deciles, segments and incentive comp</span></a>
+              <a class="report" id="dl-pptx-2" href="#"><strong>PowerPoint deck</strong><span>6 slides: highlights, trend, responsiveness, recommendation, targeting and incentive comp</span></a>
             </div>
             <h3 class="mt">Load your own data</h3>
             <p class="sub-block">Put <code>hcp.csv</code>, <code>activity.csv</code> and <code>rx.csv</code> in a folder, then run:</p>
             <pre>python run.py --import-dir &lt;folder&gt;</pre>
+            <p class="sub-block mt-s">Add <code>territory.csv</code> (and <code>territory_id</code> in hcp.csv) to enable incentive compensation.</p>
           </article>
         </section>
+        <section class="card">
+          <h2>Data dictionary <span class="hint">read live from the warehouse</span></h2>
+          <div id="dictionary"></div>
+        </section>
+
       </div>
     </main>
     <footer>Synthetic data for demonstration. Model: HCP fixed-effects log-log regression with adstock carry-over.</footer>

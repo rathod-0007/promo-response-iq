@@ -155,3 +155,36 @@ def data_info(settings: Settings) -> dict:
             "hcps": int(cnt["hcps"]), "activity_rows": int(cnt["activity_rows"]), "rx_rows": int(cnt["rx_rows"]),
             "first_month": cnt["first_month"], "last_month": cnt["last_month"], "loads": int(cnt["loads"]),
             "schema": settings.schema}
+
+
+def hcp_totals(settings: Settings, f: Filters) -> pd.DataFrame:
+    """One row per HCP for the filtered window (used by targeting analysis)."""
+    where, params = _where(f)
+    return _query(settings,
+                  "SELECT t.hcp_id, h.name, t.tier, t.region, t.specialty, t.trx, t.calls FROM "
+                  "(SELECT hcp_id, specialty, region, tier, SUM(trx) AS trx, SUM(calls) AS calls "
+                  "FROM v_hcp_month" + where + " GROUP BY hcp_id, specialty, region, tier) t "
+                  "JOIN hcp h ON h.hcp_id = t.hcp_id ORDER BY t.hcp_id", params)
+
+
+def data_dictionary(settings: Settings) -> list[dict]:
+    """Tables and views of the warehouse with column types and the comments defined in schema.sql."""
+    df = _query(settings, """
+        SELECT t.table_name, t.table_type, c.column_name, c.data_type, c.ordinal_position,
+               obj_description(cl.oid, 'pg_class') AS table_comment,
+               col_description(cl.oid, c.ordinal_position::int) AS column_comment
+        FROM information_schema.tables t
+        JOIN information_schema.columns c ON c.table_schema = t.table_schema AND c.table_name = t.table_name
+        JOIN pg_class cl ON cl.relname = t.table_name
+        JOIN pg_namespace n ON n.oid = cl.relnamespace AND n.nspname = t.table_schema
+        WHERE t.table_schema = :schema
+        ORDER BY t.table_type, t.table_name, c.ordinal_position""", {"schema": settings.schema})
+    out = []
+    for name, g in df.groupby("table_name", sort=False):
+        first = g.iloc[0]
+        out.append({"name": name, "kind": "view" if first["table_type"] == "VIEW" else "table",
+                    "description": first["table_comment"] if isinstance(first["table_comment"], str) else "",
+                    "columns": [{"name": r.column_name, "type": r.data_type,
+                                 "description": r.column_comment if isinstance(r.column_comment, str) else ""}
+                                for r in g.itertuples()]})
+    return out

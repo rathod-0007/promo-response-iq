@@ -15,6 +15,7 @@ def write_rx(folder, *rows):
 @pytest.fixture()
 def csv_dir(scratch_settings, tmp_path):
     hcp, act, rx = generate(scratch_settings.simulation)
+    hcp = hcp.drop(columns=["territory_id"])   # base case: no territory data
     hcp.to_csv(tmp_path / "hcp.csv", index=False)
     act.to_csv(tmp_path / "activity.csv", index=False)
     rx.to_csv(tmp_path / "rx.csv", index=False)
@@ -23,7 +24,7 @@ def csv_dir(scratch_settings, tmp_path):
 
 def test_import_loads_and_is_queryable(scratch_settings, csv_dir):
     res = import_csv_dir(scratch_settings, csv_dir)
-    assert res == {"hcps": 30, "activity_rows": 180, "rx_rows": 180}
+    assert res == {"hcps": 30, "activity_rows": 180, "rx_rows": 180, "territories": 0}
     assert an.kpis(scratch_settings, an.Filters())["active_hcps"] == 30
     with get_engine(scratch_settings).connect() as c:
         source = c.execute(text("SELECT source FROM data_load ORDER BY load_id DESC LIMIT 1")).scalar()

@@ -135,9 +135,10 @@ function draw(id, config) {
 
 function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
 
-function clearModelPanels() {
-  ["c-elast", "c-roi"].forEach(destroyChart);
-  ["t-model", "t-roi", "t-decay", "t-tier", "t-moves", "opt-kpis", "insights"].forEach((id) => { $(id).innerHTML = ""; });
+function clearPage(key) {
+  const root = $(`page-${key}`);
+  root.querySelectorAll("canvas").forEach((c) => destroyChart(c.id));
+  root.querySelectorAll("table, .kpis, ol, dl").forEach((el) => { el.innerHTML = ""; });
 }
 
 function showNotice(msg) { const n = $("notice"); n.hidden = !msg; n.textContent = msg || ""; }
@@ -182,7 +183,7 @@ async function loadOverview() {
 }
 
 async function loadModel() {
-  clearModelPanels();
+  clearPage("model");
   const { model, roi } = await api("/api/model");
   const accent = cssVar("--accent");
   const tiers = Object.entries(model.tier_beta).sort();
@@ -218,7 +219,7 @@ async function loadOptimizer() {
   const pct = state.budget;
   $("budget").value = pct;
   $("budget-val").textContent = `${signed(pct)}%`;
-  clearModelPanels();
+  clearPage("optimizer");
   const opt = await api("/api/optimize", { budget_change_pct: pct });
   const s = opt.summary;
   kpiCards("opt-kpis", [
@@ -238,6 +239,107 @@ async function loadOptimizer() {
     { key: "current_calls", label: "Now", num: true, f: (v) => fmt(v, 1) }, { key: "recommended_calls", label: "Plan", num: true, f: (v) => fmt(v) },
     { key: "delta_trx", label: "Δ Rx", num: true, f: (v) => fmt(v, 2) },
   ], opt.top_moves);
+}
+
+async function loadTargeting() {
+  const t = await api("/api/targeting");
+  if (!t.deciles.length) { const e = new Error("No HCPs match the selected filters."); e.status = 422; throw e; }
+  const s = t.summary, accent = cssVar("--accent"), amber = cssVar("--amber");
+  kpiCards("tg-kpis", [
+    { label: `Top ${s.high_volume_deciles} deciles: share of Rx`, value: `${fmt(s.top_rx_share_pct, 1)}%` },
+    { label: `Top ${s.high_volume_deciles} deciles: share of calls`, value: `${fmt(s.top_call_share_pct, 1)}%` },
+    { label: "Call alignment score", value: `${fmt(s.alignment_score_pct, 1)}%`, sub: "100% = calls follow Rx exactly" },
+    { label: "HCPs analysed", value: fmt(s.hcps) },
+  ]);
+  draw("c-deciles", {
+    type: "bar",
+    data: { labels: t.deciles.map((d) => `D${d.decile}`), datasets: [
+      { label: "Share of Rx %", data: t.deciles.map((d) => d.rx_share_pct), backgroundColor: accent, borderRadius: 2 },
+      { label: "Share of calls %", data: t.deciles.map((d) => d.call_share_pct), backgroundColor: amber, borderRadius: 2 }] },
+    options: { interaction: { mode: "index", intersect: false } },
+  });
+  table("t-deciles", [
+    { key: "decile", label: "Decile" }, { key: "hcps", label: "HCPs", num: true, f: (v) => fmt(v) },
+    { key: "rx_share_pct", label: "Rx %", num: true, f: (v) => fmt(v, 1) }, { key: "call_share_pct", label: "Calls %", num: true, f: (v) => fmt(v, 1) },
+    { key: "trx_per_call", label: "Rx / call", num: true, f: (v) => fmt(v, 2) }, { key: "call_index", label: "Index", num: true, f: (v) => fmt(v, 2) },
+    { key: "action", label: "Action" },
+  ], t.deciles);
+  const note = $("tg-note");
+  note.hidden = !t.segments_note; note.textContent = t.segments_note ? `Segmentation unavailable: ${t.segments_note}` : "";
+  table("t-segments", [
+    { key: "segment", label: "Segment" }, { key: "hcps", label: "HCPs", num: true, f: (v) => fmt(v) },
+    { key: "rx_share_pct", label: "Rx %", num: true, f: (v) => fmt(v, 1) }, { key: "call_share_pct", label: "Calls %", num: true, f: (v) => fmt(v, 1) },
+    { key: "calls_per_hcp", label: "Calls / HCP", num: true, f: (v) => fmt(v, 1) }, { key: "advice", label: "Recommended action" },
+  ], t.segments || [], { empty: "Segments need enough data to fit the response model" });
+  const hcpCols = [{ key: "name", label: "HCP" }, { key: "tier", label: "Tier" }, { key: "region", label: "Region" },
+    { key: "decile", label: "Decile", num: true }, { key: "trx", label: "Rx", num: true, f: (v) => fmt(v) }, { key: "calls", label: "Calls", num: true, f: (v) => fmt(v) }];
+  table("t-under", hcpCols, t.under_served, { empty: "None: every top prescriber has at least the median call level" });
+  table("t-over", hcpCols, t.over_served, { empty: "None: no low prescriber is called as often as top prescribers" });
+}
+
+/* Incentive-compensation controls are seeded from config defaults (/api/meta) and sent as plan overrides. */
+function icLabels() {
+  $("ic-growth-val").textContent = `${signed(Number($("ic-growth").value))}%`;
+  $("ic-threshold-val").textContent = `${$("ic-threshold").value}%`;
+  $("ic-accel-val").textContent = `${Number($("ic-accel").value).toFixed(2)}x`;
+}
+function setRange(id, value, min, max) { const el = $(id); el.min = Math.min(Number(el.min), value, min); el.max = Math.max(Number(el.max), value, max); el.value = value; }
+function icDefaults() {
+  const d = meta.incentive;
+  setRange("ic-growth", d.quota_growth_pct, -10, 30);
+  setRange("ic-threshold", Math.round(d.threshold_attainment * 100), 50, 95);
+  setRange("ic-accel", d.accelerator, 0, 3);
+  fillSelect("ic-quarter", [], "", "");
+  icLabels();
+}
+function icParams() {
+  const p = { quota_growth_pct: Number($("ic-growth").value), threshold_attainment: Number($("ic-threshold").value) / 100, accelerator: Number($("ic-accel").value) };
+  if ($("ic-quarter").value) p.quarter = $("ic-quarter").value;
+  return p;
+}
+
+async function loadIncentive() {
+  if (!meta.has_territories) {
+    const e = new Error("No territory data is loaded. Add territory.csv (see Data & reports) to enable incentive compensation."); e.status = 422; throw e;
+  }
+  icLabels();
+  let res;
+  try { res = await api("/api/incentive", icParams()); }
+  catch (e) {
+    if (e.status === 422 && /not available/.test(e.message) && $("ic-quarter").value) { fillSelect("ic-quarter", [], "", ""); res = await api("/api/incentive", icParams()); }
+    else throw e;
+  }
+  const s = res.summary, accent = cssVar("--accent"), bad = cssVar("--bad");
+  fillSelect("ic-quarter", res.quarters, "", res.quarter);
+  $("ic-quarter")._combo.rebuild();
+  kpiCards("ic-kpis", [
+    { label: "Attainment vs quota", value: `${fmt(s.weighted_attainment_pct, 1)}%`, sub: `${s.territories} territories x ${s.quarters} quarters` },
+    { label: "Territory-quarters at quota", value: `${fmt(s.pct_at_or_above_target, 1)}%`, sub: `${fmt(s.pct_below_threshold, 1)}% below payout threshold`, tone: s.pct_below_threshold > 0 ? "bad" : "good" },
+    { label: "Total payout", value: money(s.total_payout), sub: `${fmt(s.payout_vs_target_pct, 1)}% of target incentive` },
+    { label: "Cost of sales", value: s.cost_of_sales_pct === null ? "n/a" : `${fmt(s.cost_of_sales_pct, 2)}%`, sub: "payout / Rx revenue" },
+  ]);
+  draw("c-ic-hist", {
+    type: "bar",
+    data: { labels: res.histogram.map((b) => b.label), datasets: [{ label: "Territory-quarters", data: res.histogram.map((b) => b.count), backgroundColor: res.histogram.map((b) => (b.below_threshold ? bad : accent)), borderRadius: 2 }] },
+    options: { plugins: { legend: { display: false } } },
+  });
+  draw("c-ic-curve", {
+    type: "line",
+    data: { labels: res.curve.map((c) => `${c.attainment_pct}%`), datasets: [{ label: "Payout % of target", data: res.curve.map((c) => c.payout_pct), borderColor: accent, backgroundColor: accent, pointRadius: 0, borderWidth: 2, stepped: false }] },
+    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { maxTicksLimit: 8 } } } },
+  });
+  table("t-ic-quarters", [
+    { key: "quarter", label: "Quarter" }, { key: "territories", label: "Terr.", num: true, f: (v) => fmt(v) },
+    { key: "attainment_pct", label: "Attainment", num: true, f: (v) => `${fmt(v, 1)}%` },
+    { key: "pct_at_or_above_target", label: "At quota", num: true, f: (v) => `${fmt(v, 0)}%` }, { key: "total_payout", label: "Payout", num: true, f: money },
+  ], res.by_quarter);
+  $("ic-quarter-label").textContent = `${res.quarter}, ranked by attainment`;
+  table("t-ic-terr", [
+    { key: "territory", label: "Territory" }, { key: "rep_name", label: "Rep" },
+    { key: "actual", label: "Rx", num: true, f: (v) => fmt(v) }, { key: "quota", label: "Quota", num: true, f: (v) => fmt(v) },
+    { key: "attainment_pct", label: "Attain.", num: true, f: (v) => `${fmt(v, 1)}%` }, { key: "payout_pct", label: "Payout %", num: true, f: (v) => `${fmt(v, 0)}%` },
+    { key: "payout", label: "Payout", num: true, f: money },
+  ], res.territories);
 }
 
 async function loadExplorer() {
@@ -269,6 +371,19 @@ async function loadData() {
   ];
   const dl = $("data-info"); dl.innerHTML = "";
   rows.forEach(([k, v]) => { const dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = k; dd.textContent = v; dl.append(dt, dd); });
+  const dict = await fetch("/api/data-dictionary").then((r) => r.json());
+  const root = $("dictionary"); root.innerHTML = "";
+  dict.forEach((t, i) => {
+    const det = document.createElement("details");
+    const sum = document.createElement("summary");
+    const nm = document.createElement("strong"); nm.textContent = t.name;
+    const tag = document.createElement("span"); tag.className = "tag"; tag.textContent = t.kind;
+    const ds = document.createElement("span"); ds.className = "hint"; ds.textContent = t.description;
+    sum.append(nm, tag, ds);
+    const tb = document.createElement("table"); tb.id = `dict-${i}`;
+    det.append(sum, tb); root.appendChild(det);
+    table(tb.id, [{ key: "name", label: "Column" }, { key: "type", label: "Type" }, { key: "description", label: "Description" }], t.columns);
+  });
 }
 
 /* ---------- router ---------- */
@@ -276,6 +391,9 @@ const PAGES = {
   overview: { title: "Overview", sub: "Performance at a glance", load: loadOverview, filters: true },
   model: { title: "Response model", sub: "How strongly each channel moves prescriptions", load: loadModel, filters: true },
   optimizer: { title: "Optimizer", sub: "What-if call allocation", load: loadOptimizer, filters: true },
+  targeting: { title: "Targeting", sub: "Are calls aligned with prescribing potential?", load: loadTargeting, filters: true },
+  incentive: { title: "Incentive compensation", sub: "Quota attainment, payout and plan cost by territory", load: loadIncentive, filters: true,
+    note: "Incentive plans are measured on whole territories, so the specialty and tier filters are not applied here." },
   explorer: { title: "HCP explorer", sub: "Search, sort and page through every prescriber", load: loadExplorer, filters: true },
   data: { title: "Data & reports", sub: "Warehouse status, exports and imports", load: loadData, filters: false },
 };
@@ -298,7 +416,7 @@ async function load() {
   try {
     await PAGES[key].load();
   } catch (e) {
-    if (e.status === 422) { clearModelPanels(); showNotice(e.message); } else showNotice(`Could not load data: ${e.message}`);
+    if (e.status === 422) { clearPage(key); showNotice(e.message); } else showNotice(`Could not load data: ${e.message}`);
   } finally {
     main.classList.remove("loading");
   }
@@ -320,6 +438,7 @@ function show() {
   $("page-sub").textContent = PAGES[key].sub;
   document.title = `${PAGES[key].title} · PromoResponseIQ`;
   $("filters").hidden = !PAGES[key].filters;
+  $("page-note").hidden = !PAGES[key].note; $("page-note").textContent = PAGES[key].note || "";
   closeMenu();
   window.scrollTo(0, 0);
   load();
@@ -360,6 +479,14 @@ function init() {
       syncSelects();
       state.budget = 0; state.hcp.page = 1; load();
     });
+    icDefaults();
+    enhanceSelect($("ic-quarter"));
+    ["ic-growth", "ic-threshold", "ic-accel"].forEach((id) => {
+      $(id).addEventListener("input", icLabels);
+      $(id).addEventListener("change", () => { if (state.page === "incentive") load(); });
+    });
+    $("ic-quarter").addEventListener("change", () => { if (state.page === "incentive") load(); });
+    $("ic-reset").addEventListener("click", () => { icDefaults(); load(); });
     $("budget").addEventListener("input", () => { $("budget-val").textContent = `${signed(Number($("budget").value))}%`; });
     $("budget").addEventListener("change", () => { state.budget = Number($("budget").value); load(); });
     $("hcp-q").addEventListener("input", debounce(() => { state.hcp.q = $("hcp-q").value.trim(); state.hcp.page = 1; load(); }, 250));

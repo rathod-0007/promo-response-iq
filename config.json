@@ -55,7 +55,8 @@
       1.06,
       1.04,
       0.94
-    ]
+    ],
+    "territories_per_region": 6
   },
   "economics": {
     "revenue_per_trx": 320.0,
@@ -73,5 +74,21 @@
     "max_calls_per_hcp": 10,
     "recent_months": 6,
     "min_observations": 200
+  },
+  "incentive": {
+    "quota_growth_pct": 6.0,
+    "target_incentive": 12000.0,
+    "threshold_attainment": 0.8,
+    "threshold_payout": 0.5,
+    "accelerator": 1.5,
+    "cap_payout": 2.0,
+    "histogram_bin_pp": 10
+  },
+  "targeting": {
+    "deciles": 10,
+    "over_index": 1.2,
+    "under_index": 0.8,
+    "high_volume_deciles": 3,
+    "misaligned_top": 10
   }
 }
