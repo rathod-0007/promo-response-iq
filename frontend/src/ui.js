@@ -205,10 +205,11 @@ export function enhanceSelect(sel) {
     const room = window.innerHeight - r.bottom;
     const want = Math.min(pop.scrollHeight, 330) + 12;
     const up = room < want && r.top > room;
-    pop.style.left = `${r.left}px`;
-    pop.style.width = `${Math.max(r.width, 190)}px`;
-    pop.style.top = up ? "auto" : `${r.bottom + 6}px`;
-    pop.style.bottom = up ? `${window.innerHeight - r.top + 6}px` : "auto";
+    const width = Math.min(Math.max(r.width, 240), window.innerWidth - 16);                  // as wide as the trigger, at least 240px (IFMS)
+    pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - width - 8))}px`;   // kept inside the window
+    pop.style.width = `${width}px`;
+    pop.style.top = up ? "auto" : `${r.bottom + 4}px`;
+    pop.style.bottom = up ? `${window.innerHeight - r.top + 4}px` : "auto";
   };
   const close = () => {
     pop.hidden = true;

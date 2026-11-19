@@ -64,7 +64,10 @@ def insights(kpi: dict, model: ModelResult, roi: list[dict], opt: dict, targetin
     t = tokens(profile)
     out = []
     tb = dict(model.tier_beta)
-    if tb:
+    if len(tb) == 1:
+        (only, beta), = tb.items()
+        out.append(f"{tier_name(profile, only)} {t['entities_l']} respond to {t['primary_l']} with an elasticity of {beta:.2f}.")
+    elif tb:
         top, low = max(tb, key=tb.get), min(tb, key=tb.get)
         out.append(f"{tier_name(profile, top)} {t['entities_l']} respond most to {t['primary_l']} (elasticity {tb[top]:.2f}); "
                    f"{tier_name(profile, low)} respond least ({tb[low]:.2f}).")

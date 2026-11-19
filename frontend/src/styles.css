@@ -27,12 +27,18 @@
   --accent: #0f766e; --on-accent: #ffffff; --amber: #b45309; --good: #0f766e; --bad: #b42318;
   --shadow-pop: 0 14px 32px rgba(15, 25, 40, .14);
   --side-w: 248px;
+
+  /* dropdown palette, taken from the IFMS SearchableDropdown */
+  --dd-text: #475569; --dd-value: #1e293b; --dd-muted: #94a3b8; --dd-border: #cbd5e1; --dd-panel-border: #e2e8f0;
+  --dd-search-bg: #f1f5f9; --dd-hover: #f1f5f9; --dd-sel-bg: rgba(99, 102, 241, .10); --dd-sel-text: #4f46e5; --dd-focus: #818cf8;
 }
 :root[data-theme="dark"] {
   --bg: #101316; --surface: #161a1e; --soft: #1d2227; --ink: #e8eaeb; --ink-soft: #c5cbd1; --muted: #8a9198;
   --rule: #272d33; --rule-strong: #3b444d;
   --accent: #4fb3a5; --on-accent: #0b1916; --amber: #e0a458; --good: #4fb3a5; --bad: #f0877d;
   --shadow-pop: 0 14px 32px rgba(0, 0, 0, .5);
+  --dd-text: #aab3c2; --dd-value: #e2e8f0; --dd-muted: #6b7686; --dd-border: rgba(255, 255, 255, .16); --dd-panel-border: rgba(255, 255, 255, .10);
+  --dd-search-bg: rgba(255, 255, 255, .06); --dd-hover: rgba(255, 255, 255, .06); --dd-sel-bg: rgba(129, 140, 248, .16); --dd-sel-text: #a5b4fc; --dd-focus: #818cf8;
 }
 
 * { box-sizing: border-box; }
@@ -80,37 +86,37 @@ pre { margin: 0; padding: 10px 12px; background: var(--soft); border-radius: var
 .combo { position: relative; min-width: 168px; }
 .combo .native { display: none; }
 .combo-btn { width: 100%; height: var(--h-control); display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 0 12px; border-radius: var(--r-md);
-  border: 1px solid var(--rule-strong); background: var(--surface); color: var(--ink); font-size: var(--fs-md); font-weight: 500; cursor: pointer; text-align: left; transition: border-color .15s; }
-.combo-btn:hover, .combo.open .combo-btn { border-color: color-mix(in srgb, var(--accent) 55%, var(--rule-strong)); }
+  border: 1px solid var(--dd-border); background: var(--surface); color: var(--dd-value); font-size: 14px; font-weight: 500; cursor: pointer; text-align: left; transition: border-color .15s; }
+.combo-btn:hover, .combo.open .combo-btn { border-color: var(--dd-focus); }
 .combo-btn:focus { outline: none; }
-.combo-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--ink) 16%, transparent); outline-offset: 1px; }
+.combo-btn:focus-visible { outline: 3px solid rgba(99, 102, 241, .22); outline-offset: 0; }
 .combo-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.combo-text.placeholder { color: var(--ink-soft); font-weight: 400; }
-.combo-icons { display: flex; align-items: center; gap: 4px; flex: none; color: var(--muted); }
+.combo-text.placeholder { color: var(--dd-text); font-weight: 400; }
+.combo-icons { display: flex; align-items: center; gap: 4px; flex: none; color: var(--dd-muted); }
 .combo-icons svg { width: 16px; height: 16px; display: block; }
 .combo-chevron { display: grid; transition: transform .18s; }
 .combo.open .combo-chevron { transform: rotate(180deg); }
 .combo-clear { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 4px; cursor: pointer; }
 .combo-clear svg { width: 13px; height: 13px; }
 .combo-clear:hover { color: var(--bad); }
-.combo-pop { position: fixed; z-index: 9999; background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; box-shadow: var(--shadow-pop); overflow: hidden; }
+.combo-pop { position: fixed; z-index: 9999; background: var(--surface); border: 1px solid var(--dd-panel-border); border-radius: 12px; box-shadow: var(--shadow-pop); overflow: hidden; }
 .combo-pop { padding: 8px; }
-.combo-search { display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 14px; margin-bottom: 6px; border-radius: 12px; background: color-mix(in srgb, var(--ink) 5%, var(--surface)); }
-.combo-search-icon { display: grid; color: var(--muted); flex: none; }
+.combo-search { display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 14px; margin-bottom: 6px; border-radius: 12px; background: var(--dd-search-bg); }
+.combo-search-icon { display: grid; color: var(--dd-muted); flex: none; }
 .combo-search-icon svg { width: 17px; height: 17px; }
 /* one filled box with the icon inside; the generic form-input style must not leak in (hence the specificity) */
-.combo-pop .combo-search input, .combo-pop .combo-search input:hover, .combo-pop .combo-search input:focus { flex: 1; width: auto; min-width: 0; height: 26px; padding: 0; border: 0; border-radius: 0; outline: 0; box-shadow: none; background: transparent; color: var(--ink); font-size: var(--fs-md); }
-.combo-search input::placeholder { color: var(--muted); }
-.combo-pop ul { list-style: none; margin: 0; padding: 0; max-height: 216px; overflow-y: auto; display: grid; gap: 2px; align-content: start; }
-.combo-pop li { position: relative; padding: 9px 36px 9px 12px; border-radius: 8px; cursor: pointer; font-size: var(--fs-md); font-weight: 400; color: var(--ink-soft); overflow-wrap: anywhere; transition: background .1s; }
-.combo-pop li:hover, .combo-pop li.act { background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.combo-pop li.sel { background: color-mix(in srgb, var(--accent) 11%, transparent); color: var(--accent); font-weight: 600; }
+.combo-pop .combo-search input, .combo-pop .combo-search input:hover, .combo-pop .combo-search input:focus { flex: 1; width: auto; min-width: 0; height: 26px; padding: 0; border: 0; border-radius: 0; outline: 0; box-shadow: none; background: transparent; color: var(--dd-value); font-size: 14px; }
+.combo-search input::placeholder { color: var(--dd-muted); }
+.combo-pop ul { list-style: none; margin: 0; padding: 0; max-height: 208px; overflow-y: auto; display: grid; gap: 2px; align-content: start; }
+.combo-pop li { position: relative; padding: 10px 38px 10px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; line-height: 1.35; font-weight: 400; color: var(--dd-text); overflow-wrap: anywhere; transition: background .1s; }
+.combo-pop li:hover, .combo-pop li.act { background: var(--dd-hover); }
+.combo-pop li.sel { background: var(--dd-sel-bg); color: var(--dd-sel-text); font-weight: 500; }
 .combo-pop li.sel::after { content: ""; position: absolute; right: 12px; top: 50%; width: 15px; height: 15px; margin-top: -7px; background: currentColor;
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12l5 5L20 6'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12l5 5L20 6'/%3E%3C/svg%3E") center / contain no-repeat; }
-.combo-pop li.sel:hover, .combo-pop li.sel.act { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-.combo-empty, .combo-more { padding: 12px; color: var(--muted); font-size: var(--fs-sm); text-align: center; }
-.combo-more { margin-top: 6px; border-radius: 8px; background: var(--soft); }
+.combo-pop li.sel:hover, .combo-pop li.sel.act { background: var(--dd-sel-bg); }
+.combo-empty, .combo-more { padding: 12px; color: var(--dd-muted); font-size: var(--fs-sm); text-align: center; }
+.combo-more { margin-top: 6px; border-radius: 8px; background: var(--dd-search-bg); }
 
 /* range sliders: custom track, the filled part follows --pct (set from JS) */
 input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; margin: 0; padding: 0; background: transparent; cursor: pointer; --pct: 50%; }
@@ -248,8 +254,8 @@ th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { color: var(--ink); }
 
 .toolbar { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
-.control.search, .control.search:hover, .control.search:focus { border-color: transparent; background-color: color-mix(in srgb, var(--ink) 5%, var(--surface)); }
-.control.search:focus { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent); }
+.control.search, .control.search:hover, .control.search:focus { border-color: transparent; background-color: var(--dd-search-bg); color: var(--dd-value); }
+.control.search:focus { box-shadow: 0 0 0 3px rgba(99, 102, 241, .22); }
 .control.search { flex: 1; max-width: 380px; height: 42px; border-radius: 12px; padding-left: 40px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a9198' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: 14px center; background-size: 17px; -webkit-appearance: none; appearance: none; }
