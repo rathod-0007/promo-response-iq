@@ -33,9 +33,9 @@ def _records(df):
     return df.astype(object).where(df.notna(), None).to_dict("records")
 
 
-NO_FRONTEND = """<!doctype html><meta charset="utf-8"><title>PromoResponseIQ API</title>
+NO_FRONTEND = """<!doctype html><meta charset="utf-8"><title>RxLift API</title>
 <body style="font:15px/1.6 system-ui;max-width:640px;margin:48px auto;padding:0 20px">
-<h1>PromoResponseIQ API is running</h1>
+<h1>RxLift API is running</h1>
 <p>The web UI is a separate app. In another terminal:</p>
 <pre style="background:#f3f3f0;padding:12px;border-radius:8px">cd frontend
 npm install
@@ -60,7 +60,7 @@ def create_app(settings: Settings | None = None, frontend_dir: str | Path | None
     settings = settings or load_settings()
     ensure_db(settings)
     bi.ensure_published(settings)
-    app = FastAPI(title="PromoResponseIQ", version="1.0.0")
+    app = FastAPI(title="RxLift", version="1.0.0")
     origins = _cors_origins(settings)
     if origins:
         app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"], allow_headers=["*"])
@@ -148,7 +148,7 @@ def create_app(settings: Settings | None = None, frontend_dir: str | Path | None
     @app.get("/api/upload/template")
     def upload_template():
         return Response(uploader.template_csv(), media_type="text/csv",
-                        headers={"Content-Disposition": 'attachment; filename="promoresponseiq_template.csv"'})
+                        headers={"Content-Disposition": 'attachment; filename="rxlift_template.csv"'})
 
     @app.post("/api/upload/inspect")
     async def upload_inspect(file: UploadFile = File(...)):
@@ -189,7 +189,7 @@ def create_app(settings: Settings | None = None, frontend_dir: str | Path | None
     @app.get("/api/export/bi")
     def export_bi():
         return Response(bi.csv_pack(settings), media_type="application/zip",
-                        headers={"Content-Disposition": 'attachment; filename="promoresponseiq_bi_pack.zip"'})
+                        headers={"Content-Disposition": 'attachment; filename="rxlift_bi_pack.zip"'})
 
     @app.get("/api/export/tableau")
     def export_tableau():
@@ -199,7 +199,7 @@ def create_app(settings: Settings | None = None, frontend_dir: str | Path | None
             raise HTTPException(503, "Tableau export needs the optional package: pip install -r requirements-bi.txt")
         bi.ensure_published(settings)
         return Response(bi_tableau.package_bytes(settings), media_type="application/octet-stream",
-                        headers={"Content-Disposition": 'attachment; filename="PromoResponseIQ.twbx"'})
+                        headers={"Content-Disposition": 'attachment; filename="RxLift.twbx"'})
 
     @app.get("/api/export/powerbi")
     def export_powerbi(data_folder: str | None = None):
@@ -207,7 +207,7 @@ def create_app(settings: Settings | None = None, frontend_dir: str | Path | None
         bi.ensure_published(settings)
         folder = (data_folder or bi_powerbi.DEFAULT_DATA_FOLDER).rstrip("\\") + "\\"
         return Response(bi_powerbi.package_bytes(settings, folder), media_type="application/zip",
-                        headers={"Content-Disposition": 'attachment; filename="PromoResponseIQ_powerbi.zip"'})
+                        headers={"Content-Disposition": 'attachment; filename="RxLift_powerbi.zip"'})
 
     @app.get("/api/targeting")
     def targeting(region: str | None = None, specialty: str | None = None, tier: str | None = None,

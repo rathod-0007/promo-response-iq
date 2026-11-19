@@ -113,7 +113,7 @@ function show() {
   });
   $("page-title").textContent = page.title();
   $("page-sub").textContent = page.sub();
-  document.title = `${page.title()} · PromoResponseIQ`;
+  document.title = `${page.title()} · RxLift`;
   $("filters").hidden = !page.filters;
   closeMenu();
   window.scrollTo(0, 0);

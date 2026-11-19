@@ -1,1 +1,1 @@
-"""PromoResponseIQ - pharma promotion-response analytics."""
+"""RxLift - pharma promotion-response analytics."""

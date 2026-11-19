@@ -43,12 +43,12 @@ def test_powerbi_download_is_a_complete_project(client):
     assert r.status_code == 200 and "powerbi" in r.headers["content-disposition"]
     z = read_zip(r.content)
     names = set(z.namelist())
-    assert {"README.txt", "PromoResponseIQ.pbip", "PromoResponseIQ.SemanticModel/definition/relationships.tmdl",
-            "PromoResponseIQ.SemanticModel/definition/expressions.tmdl", "PromoResponseIQ.Report/definition/report.json"} <= names
+    assert {"README.txt", "RxLift.pbip", "RxLift.SemanticModel/definition/relationships.tmdl",
+            "RxLift.SemanticModel/definition/expressions.tmdl", "RxLift.Report/definition/report.json"} <= names
     assert any(n.startswith("Data/bi_fact_hcp_month") for n in names)
-    assert "C:\\PromoResponseIQ\\Data\\" in z.read("PromoResponseIQ.SemanticModel/definition/expressions.tmdl").decode()
+    assert "C:\\RxLift\\Data\\" in z.read("RxLift.SemanticModel/definition/expressions.tmdl").decode()
     z2 = read_zip(client.get("/api/export/powerbi", params={"data_folder": "D:\\bi\\data"}).content)
-    assert 'DataFolder = "D:\\bi\\data\\"' in z2.read("PromoResponseIQ.SemanticModel/definition/expressions.tmdl").decode()
+    assert 'DataFolder = "D:\\bi\\data\\"' in z2.read("RxLift.SemanticModel/definition/expressions.tmdl").decode()
 
 
 def test_every_report_field_exists_in_the_model(client):
@@ -66,14 +66,14 @@ def test_every_report_field_exists_in_the_model(client):
                 entity, prop = node["Expression"]["SourceRef"]["Entity"], node["Property"]
                 pool = measures[entity] if "Measure" in f else cols[entity]
                 assert prop in pool, f"{n}: {entity}.{prop} is not in the model"
-    pages = json.loads(z.read("PromoResponseIQ.Report/definition/pages/pages.json"))["pageOrder"]
+    pages = json.loads(z.read("RxLift.Report/definition/pages/pages.json"))["pageOrder"]
     assert len(pages) == 3
 
 
 def test_relationships_point_many_to_one_at_dimension_keys(client):
     z = read_zip(client.get("/api/export/powerbi").content)
     cols, _ = tmdl_objects(z)
-    rel = z.read("PromoResponseIQ.SemanticModel/definition/relationships.tmdl").decode()
+    rel = z.read("RxLift.SemanticModel/definition/relationships.tmdl").decode()
     pairs = re.findall(r"fromColumn: (\w+)\.(\w+)\r?\n\ttoColumn: (\w+)\.(\w+)", rel)
     assert ("bi_fact_hcp_month", "hcp_id", "bi_dim_hcp", "hcp_id") in pairs
     assert ("bi_fact_hcp_month", "month_start", "bi_dim_month", "month_start") in pairs
@@ -89,10 +89,10 @@ def test_powerbi_names_follow_the_dataset_labels(scratch_settings, tmp_path):
                                               "options": {"labels": {"metric": "NBRx"}}}).status_code == 200
     out = tmp_path / "pbi"
     r = bi_powerbi.generate(s, out)
-    assert r["pages"] >= 2 and (out / "PromoResponseIQ.pbip").exists()
-    fact = (out / "PromoResponseIQ.SemanticModel" / "definition" / "tables" / "bi_fact_hcp_month.tmdl").read_text()
+    assert r["pages"] >= 2 and (out / "RxLift.pbip").exists()
+    fact = (out / "RxLift.SemanticModel" / "definition" / "tables" / "bi_fact_hcp_month.tmdl").read_text()
     assert "measure 'Total NBRx'" in fact and "Total Rx" not in fact
-    titles = " ".join(p.read_text() for p in (out / "PromoResponseIQ.Report").rglob("visual.json"))
+    titles = " ".join(p.read_text() for p in (out / "RxLift.Report").rglob("visual.json"))
     assert "NBRx by month" in titles
 
 
@@ -110,10 +110,10 @@ def test_tableau_download_has_workbook_and_matching_extracts(client):
     assert r.status_code == 200 and "twbx" in r.headers["content-disposition"]
     z = read_zip(r.content)
     names = z.namelist()
-    assert "PromoResponseIQ.twb" in names
+    assert "RxLift.twb" in names
     hypers = [n for n in names if n.endswith(".hyper")]
     assert "Data/Extracts/bi_flat_hcp_month.hyper" in hypers
-    root = ElementTree.fromstring(z.read("PromoResponseIQ.twb"))
+    root = ElementTree.fromstring(z.read("RxLift.twb"))
     sheets = [w.get("name") for w in root.iter("worksheet")]
     assert len(sheets) >= 6 and len(sheets) == len(set(sheets))
     dash = [d.get("name") for d in root.iter("dashboard")]

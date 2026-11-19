@@ -1,6 +1,6 @@
 """Build the Power BI project from whatever data set is loaded.
 
-    python scripts/build_powerbi.py        # writes bi/powerbi/PromoResponseIQ.pbip (+ the CSVs it reads)
+    python scripts/build_powerbi.py        # writes bi/powerbi/RxLift.pbip (+ the CSVs it reads)
 
 Open the .pbip in Power BI Desktop (free), then Home > Refresh.
 """

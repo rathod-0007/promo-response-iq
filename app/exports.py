@@ -67,7 +67,7 @@ def build_workbook(report: dict) -> bytes:
     used: set = {"summary"}
     ws = wb.active
     ws.title = "Summary"
-    ws.append(["PromoResponseIQ - Executive Summary"])
+    ws.append(["RxLift - Executive Summary"])
     ws["A1"].font = Font(bold=True, size=14, color=NAVY)
     ws.append([f"Data set: {p['name']}"])
     ws.append([])
@@ -154,7 +154,7 @@ def build_deck(report: dict) -> bytes:
 
     s = prs.slides.add_slide(prs.slide_layouts[0])
     s.shapes.title.text = f"Promotion Response & {t['primary']} Allocation Review"
-    s.placeholders[1].text = f"PromoResponseIQ • {p['name']}"
+    s.placeholders[1].text = f"RxLift • {p['name']}"
 
     k = report["kpis"]
     s = prs.slides.add_slide(title_body)

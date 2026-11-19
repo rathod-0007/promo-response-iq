@@ -1,6 +1,6 @@
 """Build the Tableau workbook from whatever data set is loaded.
 
-    python scripts/build_tableau.py        # writes bi/tableau/PromoResponseIQ.twbx (+ .twb and the extracts it reads)
+    python scripts/build_tableau.py        # writes bi/tableau/RxLift.twbx (+ .twb and the extracts it reads)
 
 Needs:  pip install -r requirements-bi.txt
 """

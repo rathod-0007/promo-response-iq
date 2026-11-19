@@ -211,7 +211,7 @@ def csv_pack(settings: Settings) -> bytes:
                 w.writerow(res.keys())
                 w.writerows(res)
                 z.writestr(f"{o['name']}.csv", out.getvalue())
-        lines = ["PromoResponseIQ BI pack", f"Published: {info['refreshed_at'] or 'n/a'}", "",
+        lines = ["RxLift BI pack", f"Published: {info['refreshed_at'] or 'n/a'}", "",
                  "Load the *_fact_* / *_dim_* files as a star schema (join on hcp_id, territory_id, month_start/month_key).",
                  "Other files are ready-made analysis results. bi_dataset_labels holds the wording of this data set.", ""]
         lines += [f"{o['name']}.csv  ({o['rows']:,} rows): {o['description']}" for o in info["objects"]]

@@ -23,7 +23,7 @@ from . import bi
 from .config import ROOT, Settings
 
 OUT = ROOT / "bi" / "tableau"
-WORKBOOK = "PromoResponseIQ"
+WORKBOOK = "RxLift"
 VERSION = "18.1"
 BUILD = "2025.1.0 (20251.25.0414.1202)"
 ID_LIKE = {"year", "quarter", "decile", "load_id", "tables_published"}
@@ -335,7 +335,7 @@ def build(data_dir: Path, extract_dir_in_workbook: str, make_extracts_in: Path |
 
 
 def generate(settings: Settings, out: Path | None = None, max_sheets: int | None = None, dashboards: bool = True) -> dict:
-    """Write PromoResponseIQ.twb (opens in place), PromoResponseIQ.twbx (self-contained) and their data into `out`."""
+    """Write RxLift.twb (opens in place), RxLift.twbx (self-contained) and their data into `out`."""
     out = Path(out or OUT)
     data, extracts = out / "Data", out / "Data" / "Extracts"
     if data.exists():

@@ -19,7 +19,7 @@ from . import bi
 from .config import ROOT, Settings
 
 OUT = ROOT / "bi" / "powerbi"
-NAME = "PromoResponseIQ"
+NAME = "RxLift"
 SCHEMA = "https://developer.microsoft.com/json-schemas/fabric/item/report/definition"
 V_REPORT, V_PAGE, V_PAGES, V_VERSION, V_VISUAL = "3.3.0", "2.1.0", "1.1.0", "1.0.0", "2.14.0"
 SKIP_TABLES = {"bi_flat_hcp_month", "bi_refresh_log"}      # the flat table duplicates the star schema
@@ -28,7 +28,7 @@ T = "\t"
 
 
 def gid(seed: str) -> str:
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"promoresponseiq/{seed}"))
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"rxlift/{seed}"))
 
 
 def vid(seed: str) -> str:
@@ -295,11 +295,11 @@ def generate(settings: Settings, out: Path | None = None, data_folder: str | Non
             "visuals": sum(len(pg.visuals) for pg in pages), "exported": len(counts)}
 
 
-DEFAULT_DATA_FOLDER = "C:\\PromoResponseIQ\\Data\\"
+DEFAULT_DATA_FOLDER = "C:\\RxLift\\Data\\"
 README = (
-    "Promo Response IQ - Power BI project\r\n\r\n"
-    "1. Unzip this folder (keep the layout), e.g. to C:\\PromoResponseIQ\r\n"
-    "2. Open PromoResponseIQ.pbip in Power BI Desktop (free).\r\n"
+    "RxLift - Power BI project\r\n\r\n"
+    "1. Unzip this folder (keep the layout), e.g. to C:\\RxLift\r\n"
+    "2. Open RxLift.pbip in Power BI Desktop (free).\r\n"
     "3. If you unzipped somewhere else: Home > Transform data > Edit parameters > DataFolder = the full path of the Data folder, ending in a backslash.\r\n"
     "4. Home > Refresh.\r\n"
 )

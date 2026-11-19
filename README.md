@@ -1,8 +1,8 @@
-﻿# PromoResponseIQ
+# RxLift
 
 ![Overview](docs/overview.png)
 
-**Which doctors should a pharma sales team call more, and which less?** PromoResponseIQ loads prescriber-level activity and prescription data into PostgreSQL, measures how each promotion channel moves prescriptions, recommends where to put the effort, designs and costs an incentive-compensation plan, and serves it all through a web app, Excel/PowerPoint exports and BI-ready tables for Tableau, Power BI and Sisense.
+**Which doctors should a pharma sales team call more, and which less?** RxLift loads prescriber-level activity and prescription data into PostgreSQL, measures how each promotion channel moves prescriptions, recommends where to put the effort, designs and costs an incentive-compensation plan, and serves it all through a web app, Excel/PowerPoint exports and BI-ready tables for Tableau, Power BI and Sisense.
 
 It runs on your own data: upload an extract, match its columns once, and every page, insight and export switches to your data **and your wording** ("Detail visits", "Prescribers", "NBRx"...).
 
@@ -76,7 +76,7 @@ Both are generated from whatever data set is loaded (sample or your upload), so 
 | | Tableau | Power BI |
 |---|---|---|
 | Get it | **BI connections** page > Download Tableau workbook, or `python scripts/build_tableau.py` | **BI connections** page > Download Power BI project, or `python scripts/build_powerbi.py` |
-| Open with | Tableau Public (free) or Desktop: open `PromoResponseIQ.twbx` | Power BI Desktop (free): open `PromoResponseIQ.pbip`, then Home > Refresh |
+| Open with | Tableau Public (free) or Desktop: open `RxLift.twbx` | Power BI Desktop (free): open `RxLift.pbip`, then Home > Refresh |
 | Contents | 9 worksheets, 2 dashboards (Performance; Where to focus and incentive plan), `.hyper` extracts | 11 tables, 5 relationships, measures, 3 pages (Performance, Where to focus, Incentive plan) |
 | Data | Packaged as extracts (Tableau Public only accepts extracts), no login | CSV files read through the `DataFolder` parameter (Transform data > Edit parameters if you move the folder) |
 

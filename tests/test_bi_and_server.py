@@ -105,11 +105,11 @@ def test_index_hint_when_frontend_is_not_built(client):
 
 def test_built_frontend_is_served_with_cache_rules(settings, tmp_path):
     (tmp_path / "assets").mkdir()
-    (tmp_path / "index.html").write_text("<!doctype html><title>PromoResponseIQ</title><script type=module src=/assets/app.js></script>")
+    (tmp_path / "index.html").write_text("<!doctype html><title>RxLift</title><script type=module src=/assets/app.js></script>")
     (tmp_path / "assets" / "app.js").write_text("console.log(1)")
     c = TestClient(create_app(settings, frontend_dir=tmp_path))
     index = c.get("/")
-    assert index.status_code == 200 and "PromoResponseIQ" in index.text and index.headers["cache-control"] == "no-cache"
+    assert index.status_code == 200 and "RxLift" in index.text and index.headers["cache-control"] == "no-cache"
     asset = c.get("/assets/app.js")
     assert asset.status_code == 200 and "immutable" in asset.headers["cache-control"]
     assert c.get("/api/health").json()["status"] == "ok"            # API routes win over the static mount

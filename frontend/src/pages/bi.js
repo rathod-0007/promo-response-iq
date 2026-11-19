@@ -47,7 +47,7 @@ function renderGuides(c) {
       `Pick schema ${c.schema}. Drag bi_fact_hcp_month onto the canvas, then relate bi_dim_hcp (hcp_id), bi_dim_month (month_start) and bi_dim_territory (territory_id).`,
       `No database access? Connect → To a File → Text file, and use the CSV pack.`] },
     { tool: "Power BI", steps: [
-      `Fastest: download the Power BI project above, unzip it, open PromoResponseIQ.pbip in Power BI Desktop (free), then Home → Refresh.`,
+      `Fastest: download the Power BI project above, unzip it, open RxLift.pbip in Power BI Desktop (free), then Home → Refresh.`,
       `Or build your own: Home → Get data → PostgreSQL database.`, `Server ${where}, database ${c.database}. Choose Import (or DirectQuery for live data).`,
       `Select the bi_* tables and views. In Model view relate hcp_id, month_start and territory_id (one dimension to many facts).`,
       `Offline? Get data → Text/CSV, or Get data → Web with the API (http://localhost:8000/api/kpis returns JSON).`] },
