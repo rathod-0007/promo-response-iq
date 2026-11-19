@@ -3,6 +3,7 @@ import { Chart, registerables } from "chart.js";
 import { FILTER_IDS, pluralize } from "./state.js";
 
 Chart.register(...registerables);
+Chart.defaults.animation = false;   // charts appear fully drawn: no bars growing in while the page loads
 
 export const $ = (id) => document.getElementById(id);
 export const fmt = (n, d = 0) => (n === null || n === undefined || Number.isNaN(n) ? "n/a"

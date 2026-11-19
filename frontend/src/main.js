@@ -20,12 +20,12 @@ const PAGES = {
   targeting: { title: () => "Targeting", sub: () => T("Is {primary_l} activity aligned with {metric} potential?"), load: targeting.load, filters: true },
   incentive: {
     title: () => "Incentive compensation", sub: () => T("Quota attainment, payout and plan cost by {territory_l}"), load: incentive.load, filters: true,
-    note: () => T("Incentive plans are measured on whole {territories_l}, so the {specialty_l} and {tier_l} filters are not applied here."),
   },
   explorer: { title: () => T("{entity} explorer"), sub: () => T("Search, sort and page through every {entity_l}"), load: explorer.load, filters: true },
   data: { title: () => "Data & reports", sub: () => "Current data set, uploads, history and data dictionary", load: data.load, filters: false },
   bi: { title: () => "BI connections", sub: () => "Use this data in Tableau, Power BI or Sisense", load: bi.load, filters: false },
 };
+const loaded = new Set();            // pages that have shown data at least once
 const DIM_LISTS = { region: "regions", specialty: "specialties", tier: "tiers" };
 
 /* ---------- data set labels, filters ---------- */
@@ -60,6 +60,7 @@ async function loadMeta() {
 }
 
 async function onDatasetChanged() {
+  loaded.clear();
   state.budget = 0;
   state.hcp = { q: "", sort: "trx", order: "desc", page: 1, size: 15 };
   $("hcp-q").value = "";
@@ -88,6 +89,9 @@ async function load() {
     if (e.status === 422) { clearPage(key); showNotice(e.message); } else showNotice(`Could not load data: ${e.message}`);
   } finally {
     main.classList.remove("loading");
+    loaded.add(key);
+    $(`page-${key}`).classList.remove("pending");
+    if (state.page === key) $("boot").hidden = true;
   }
 }
 
@@ -98,7 +102,10 @@ function show() {
   const key = currentPage();
   state.page = key;
   const page = PAGES[key];
+  const first = !loaded.has(key);
   Object.keys(PAGES).forEach((k) => { $(`page-${k}`).hidden = k !== key; });
+  $(`page-${key}`).classList.toggle("pending", first);
+  $("boot").hidden = !first;
   document.querySelectorAll("#nav a").forEach((a) => {
     const on = a.dataset.page === key;
     a.classList.toggle("active", on);
@@ -108,9 +115,6 @@ function show() {
   $("page-sub").textContent = page.sub();
   document.title = `${page.title()} · PromoResponseIQ`;
   $("filters").hidden = !page.filters;
-  const note = page.note ? page.note() : "";
-  $("page-note").hidden = !note;
-  $("page-note").textContent = note;
   closeMenu();
   window.scrollTo(0, 0);
   load();
@@ -186,6 +190,7 @@ async function init() {
     await loadMeta();
     incentive.resetPlan();
   } catch (e) {
+    $("boot").hidden = true;
     showNotice(`Cannot reach the API (${e.message}). Start it with: uvicorn app.main:app --port 8000`);
     return;
   }

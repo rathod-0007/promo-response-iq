@@ -59,7 +59,7 @@
       <button class="btn ghost icon menu" id="menu" type="button" aria-label="Open navigation">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </button>
-      <div class="titles"><h2 id="page-title">Overview</h2><p id="page-sub"></p></div>
+      <div class="titles"><h2 id="page-title"></h2><p id="page-sub"></p></div>
       <div class="actions">
         <a class="btn ghost" id="dl-xlsx" href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Excel report</a>
         <a class="btn" id="dl-pptx" href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>PowerPoint</a>
@@ -67,7 +67,9 @@
     </header>
 
     <main>
-      <section class="filters" id="filters" aria-label="Filters">
+      <div class="boot" id="boot" role="status" aria-label="Loading"><span class="spinner"></span></div>
+
+      <section class="filters" id="filters" aria-label="Filters" hidden>
         <div class="field" data-dim="region"><select id="f-region" aria-label="Region"></select></div>
         <div class="field" data-dim="specialty"><select id="f-specialty" aria-label="Specialty"></select></div>
         <div class="field" data-dim="tier"><select id="f-tier" aria-label="Tier"></select></div>
@@ -76,7 +78,6 @@
         <button class="btn ghost" id="reset" type="button">Reset</button>
       </section>
 
-      <p id="page-note" class="page-note" hidden></p>
       <div id="notice" class="notice" role="status" hidden></div>
 
       <!-- Overview -->
